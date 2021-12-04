@@ -20,11 +20,11 @@ Person  search  aims  to  jointly  localize  and  identify  a query person from 
 
 + Different gallery size on CUHK-SYSU.
 
-<img src="README.assets/one-two_step.png" style="zoom: 20%;" />
+<img src="README.assets/one-two_step.png" style="zoom: 15%;" />
 
 + Qualitative Results
 
-    ![](README.assets/qual_res.png)
+    <img src="README.assets/qual_res.png" style="zoom: 40%;" />
 
 ### Train
 
