@@ -1,4 +1,4 @@
-### Approach
+### Global-Local Context Network for Person Search
 
 + Abstract:
 
