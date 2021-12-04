@@ -1,0 +1,12 @@
+OUTPUT_DIR: "./exp_cuhk"
+INPUT:
+  DATASET: "CUHK-SYSU"
+  DATA_ROOT: "../../../datasets/ps/ssm"
+  BATCH_SIZE_TRAIN: 5
+  NUM_WORKERS_TRAIN: 5
+SOLVER:
+  MAX_EPOCHS: 25
+MODEL:
+  LOSS:
+    LUT_SIZE: 5532
+    CQ_SIZE: 5000

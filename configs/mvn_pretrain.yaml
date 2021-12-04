@@ -1,0 +1,15 @@
+OUTPUT_DIR: "./exp_mvn_pretrain"
+INPUT:
+  DATASET: "MVN_pretrain"
+  DATA_ROOT: "../../../datasets/ps/mvn"
+  BATCH_SIZE_TRAIN: 15
+  NUM_WORKERS_TRAIN: 10
+  MIN_SIZE: 240
+  MAX_SIZE: 720
+SOLVER:
+  MAX_EPOCHS: 10
+  BASE_LR: 0.008
+MODEL:
+  LOSS:
+    LUT_SIZE: 3087
+    CQ_SIZE: 3000

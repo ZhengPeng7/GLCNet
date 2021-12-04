@@ -1,0 +1,12 @@
+OUTPUT_DIR: "./exp_prw"
+INPUT:
+  DATASET: "PRW"
+  DATA_ROOT: "../../../datasets/ps/prw"
+  BATCH_SIZE_TRAIN: 5
+  NUM_WORKERS_TRAIN: 5
+SOLVER:
+  MAX_EPOCHS: 25
+MODEL:
+  LOSS:
+    LUT_SIZE: 482
+    CQ_SIZE: 500
