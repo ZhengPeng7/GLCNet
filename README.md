@@ -10,9 +10,9 @@
 
 ### Performance
 
-|   Methods   | CUHK-SYSU | CUHK-SYSU |   PRW    |   PRW    |
+|  Datasets   | CUHK-SYSU | CUHK-SYSU |   PRW    |   PRW    |
 | :---------: | :-------: | :-------: | :------: | :------: |
-|      -      |    mAP    |   top-1   |   mAP    |  top-1   |
+| **Methods** |    mAP    |   top-1   |   mAP    |  top-1   |
 |     OIM     |   75.5    |   78.7    |   21.3   |   49.4   |
 |    NAE+     |   92.1    |   92.9    |   44.0   |   81.1   |
 |    TCTS     |   93.9    |   95.1    |   46.8   |   87.5   |
