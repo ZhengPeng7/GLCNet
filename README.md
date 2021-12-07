@@ -58,12 +58,10 @@ Thanks to the solid codebase from [SeqNet](https://github.com/serend1p1ty/SeqNet
                 Bingbing Ni and
                 Xiaogang Cheng and
                 Ling Shao},
-    title 	 = {Global-Local Context Network for Person Search},
+    title    = {Global-Local Context Network for Person Search},
     journal  = {arXiv e-prints},
-    volume	 = {abs/2109.00211},
-    year	 = {2021}
+    volume   = {abs/2109.00211},
+    year     = {2021}
 }
-
-
 ```
 
