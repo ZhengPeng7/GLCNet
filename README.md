@@ -41,7 +41,7 @@ Run the `demo.py` to make inference on given images. GLCNet runs at 10.3 fps on 
 
 ### MovieNet-CS
 
-To extend person search framework to a more challenging task, i.e., character search (CS). We borrow the character detection and ID annotations from the [MovieNet](http://movienet.site/) dataset to organize MovieNet-CS, and set different levels of training set and different gallery size same as CUHK-SYSU. MovieNet-CS is saved exactly the same format and structure as CUHK-SYSU, which could be of great convenience to further research and experiments. If you want to use MovieNet-CS, please download movie frames on the official website of MovieNet and our reorganized annotations [here](#).
+To extend person search framework to a more challenging task, i.e., character search (CS). We borrow the character detection and ID annotations from the [MovieNet](http://movienet.site/) dataset to organize MovieNet-CS, and set different levels of training set and different gallery size same as CUHK-SYSU. MovieNet-CS is saved exactly the same format and structure as CUHK-SYSU, which could be of great convenience to further research and experiments. If you want to use MovieNet-CS, please download movie frames on the official website of MovieNet and our reorganized annotations [here(TBD)](#).
 
 ### Acknowledgement
 
