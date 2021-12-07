@@ -51,13 +51,13 @@ Thanks to the solid codebase from [SeqNet](https://github.com/serend1p1ty/SeqNet
 
 ```bibtex
 @ARTICLE{2021arXiv211202500Z,
-	author 	 = {Peng Zheng and
-				Jie Qin and
-				Yichao Yan and
-				Shengcai Liao and
-				Bingbing Ni and
-				Xiaogang Cheng and
-				Ling Shao},
+    author 	 = {Peng Zheng and
+                Jie Qin and
+                Yichao Yan and
+                Shengcai Liao and
+                Bingbing Ni and
+                Xiaogang Cheng and
+                Ling Shao},
     title 	 = {Global-Local Context Network for Person Search},
     journal  = {arXiv e-prints},
     volume	 = {abs/2109.00211},
