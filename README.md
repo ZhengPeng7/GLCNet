@@ -51,7 +51,7 @@ Thanks to the solid codebase from [SeqNet](https://github.com/serend1p1ty/SeqNet
 
 ```bibtex
 @ARTICLE{2021arXiv211202500Z,
-    author 	 = {Peng Zheng and
+    author   = {Peng Zheng and
                 Jie Qin and
                 Yichao Yan and
                 Shengcai Liao and
