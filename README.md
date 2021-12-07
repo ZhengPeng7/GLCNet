@@ -39,9 +39,31 @@
 ### Inference
 Run the `demo.py` to make inference on given images. GLCNet runs at 10.3 fps on a single Tesla V100 GPU with batch_size 3.
 
+### MovieNet-CS
 
+To extend person search framework to a more challenging task, i.e., character search (CS). We borrow the character detection and ID annotations from the [MovieNet](http://movienet.site/) dataset to organize MovieNet-CS, and set different levels of training set and different gallery size same as CUHK-SYSU. MovieNet-CS is saved exactly the same format and structure as CUHK-SYSU, which could be of great convenience to further research and experiments. If you want to use MovieNet-CS, please download movie frames on the official website of MovieNet and our reorganized annotations [here](#).
 
-### Acknowledge
+### Acknowledgement
 
 Thanks to the solid codebase from [SeqNet](https://github.com/serend1p1ty/SeqNet).
+
+### Citation
+
+```bibtex
+@ARTICLE{2021arXiv211202500Z,
+	author 	 = {Peng Zheng and
+				Jie Qin and
+				Yichao Yan and
+				Shengcai Liao and
+				Bingbing Ni and
+				Xiaogang Cheng and
+				Ling Shao},
+    title 	 = {Global-Local Context Network for Person Search},
+    journal  = {arXiv e-prints},
+    volume	 = {abs/2109.00211},
+    year	 = {2021}
+}
+
+
+```
 
