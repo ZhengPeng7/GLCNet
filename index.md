@@ -1,37 +1,67 @@
-## Welcome to GitHub Pages
+### Global-Local Context Network for Person Search
 
-You can use the [editor on GitHub](https://github.com/ZhengPeng7/GLCNet/edit/gh-pages/index.md) to maintain and preview the content for your website in Markdown files.
++ Abstract:
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+​    Person  search  aims  to  jointly  localize  and  identify  a query person from natural,  uncropped images,  which has been  actively  studied  in  the  computer  vision  community over the past few years. In this paper, we delve into the rich context  information  globally  and  locally  surrounding  the target person, which we refer to scene and group context,respectively. Unlike previous works that treat the two types of context individually, we exploit them in a unified global-local  context  network  (**GLCNet**)  with  the  intuitive  aim  of feature enhancement.   Specifically,  re-ID embeddings and context  features  are  enhanced  simultaneously  in  a  multi-stage fashion, ultimately leading to enhanced, discriminative features for person search. We conduct the experiments on two person search benchmarks (i.e., CUHK-SYSU and PRW) as well as extend our approach to a more challenging setting (i.e., **character search on MovieNet**).  Extensive experimental results demonstrate the consistent improvement of the proposed GLCNet over the state-of-the-art methods on the three datasets.
 
-### Markdown
++ Overall architecture of our GLCNet:
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+![arch](README.assets/arch.svg)
 
-```markdown
-Syntax highlighted code block
+### Performance
 
-# Header 1
-## Header 2
-### Header 3
+|  Datasets   | CUHK-SYSU | CUHK-SYSU |   PRW    |   PRW    |
+| :---------: | :-------: | :-------: | :------: | :------: |
+| **Methods** |    mAP    |   top-1   |   mAP    |  top-1   |
+|     OIM     |   75.5    |   78.7    |   21.3   |   49.4   |
+|    NAE+     |   92.1    |   92.9    |   44.0   |   81.1   |
+|    TCTS     |   93.9    |   95.1    |   46.8   |   87.5   |
+|  AlignPS+   |   94.0    |   94.5    |   46.1   |   82.1   |
+| SeqNet+CBGM |   94.8    |   95.7    | **47.6** |   87.6   |
+|   GLCNet    |   95.7    |   96.3    |   46.9   |   85.1   |
+| GLCNet+CBGM | **96.0**  | **96.3**  | **47.6** | **88.0** |
 
-- Bulleted
-- List
++ Different gallery size on CUHK-SYSU:
 
-1. Numbered
-2. List
+<img src="README.assets/one-two_step.png" />
 
-**Bold** and _Italic_ and `Code` text
++ Qualitative Results:
 
-[Link](url) and ![Image](src)
+    <img src="README.assets/qual_res.png" />
+
+### Train
+
+`sh ./run_${DATASET}.sh`
+
+### Test
+`sh ./test_${DATASET}.sh`
+
+### Inference
+Run the `demo.py` to make inference on given images. GLCNet runs at **10.3 fps** on a single Tesla V100 GPU with batch_size 3.
+
+### MovieNet-CS
+
+To extend person search framework to a more challenging task, i.e., character search (CS). We borrow the character detection and ID annotations from the [MovieNet](http://movienet.site/) dataset to organize MovieNet-CS, and set different levels of training set and different gallery size same as CUHK-SYSU. MovieNet-CS is saved exactly the same format and structure as CUHK-SYSU, which could be of great convenience to further research and experiments. If you want to use MovieNet-CS, please download movie frames on the official website of MovieNet and our reorganized annotations [here(TBD)](#).
+
+### Acknowledgement
+
+Thanks to the solid codebase from [SeqNet](https://github.com/serend1p1ty/SeqNet).
+
+### Citation
+
+```bibtex
+@ARTICLE{2021arXiv211202500Z,
+    author   = {Peng Zheng and
+                Jie Qin and
+                Yichao Yan and
+                Shengcai Liao and
+                Bingbing Ni and
+                Xiaogang Cheng and
+                Ling Shao},
+    title    = {Global-Local Context Network for Person Search},
+    journal  = {arXiv e-prints},
+    volume   = {abs/2109.00211},
+    year     = {2021}
+}
 ```
 
-For more details see [Basic writing and formatting syntax](https://docs.github.com/en/github/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax).
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/ZhengPeng7/GLCNet/settings/pages). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://support.github.com/contact) and we’ll help you sort it out.
