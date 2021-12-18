@@ -37,7 +37,11 @@
 `sh ./test_${DATASET}.sh`
 
 ### Inference
-Run the `demo.py` to make inference on given images. GLCNet runs at 10.3 fps on a single Tesla V100 GPU with batch_size 3.
+Run the `demo.py` to make inference on given images. GLCNet runs at **10.3 fps** on a single Tesla V100 GPU with batch_size 3.
+
+### Weights
+
+You can download our well-trained models -- cuhk_957.pth and prw_469.pth from [my google-drive folder for GLCNet](https://drive.google.com/drive/folders/1wbq5jptOGxXDE0ze1tAMdcvXEaE1Wybt?usp=sharing). 
 
 ### MovieNet-CS
 
