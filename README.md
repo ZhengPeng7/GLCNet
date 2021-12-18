@@ -10,16 +10,17 @@
 
 ### Performance
 
-|  Datasets   | CUHK-SYSU | CUHK-SYSU |   PRW    |   PRW    |
-| :---------: | :-------: | :-------: | :------: | :------: |
-| **Methods** |    mAP    |   top-1   |   mAP    |  top-1   |
-|     OIM     |   75.5    |   78.7    |   21.3   |   49.4   |
-|    NAE+     |   92.1    |   92.9    |   44.0   |   81.1   |
-|    TCTS     |   93.9    |   95.1    |   46.8   |   87.5   |
-|  AlignPS+   |   94.0    |   94.5    |   46.1   |   82.1   |
-| SeqNet+CBGM |   94.8    |   95.7    | **47.6** |   87.6   |
-|   GLCNet    |   95.7    |   96.3    |   46.9   |   85.1   |
-| GLCNet+CBGM | **96.0**  | **96.3**  | **47.6** | **88.0** |
+|                      Datasets                       | CUHK-SYSU | CUHK-SYSU |   PRW    |   PRW    |
+| :-------------------------------------------------: | :-------: | :-------: | :------: | :------: |
+|                     **Methods**                     |    mAP    |   top-1   |   mAP    |  top-1   |
+| [OIM](https://github.com/serend1p1ty/person_search) |   75.5    |   78.7    |   21.3   |   49.4   |
+|     [NAE+](https://github.com/DeanChan/NAE4PS)      |   92.1    |   92.9    |   44.0   |   81.1   |
+|                        TCTS                         |   93.9    |   95.1    |   46.8   |   87.5   |
+|   [AlignPS+](https://github.com/daodaofr/AlignPS)   |   94.0    |   94.5    |   46.1   |   82.1   |
+|   [SeqNet](https://github.com/serend1p1ty/SeqNet)   |   93.8    |   94.6    |   46.7   |   83.4   |
+|                     SeqNet+CBGM                     |   94.8    |   95.7    | **47.6** |   87.6   |
+|                       GLCNet                        |   95.7    |   96.3    |   46.9   |   85.1   |
+|                     GLCNet+CBGM                     | **96.0**  | **96.3**  | **47.6** | **88.0** |
 
 + Different gallery size on CUHK-SYSU:
 
