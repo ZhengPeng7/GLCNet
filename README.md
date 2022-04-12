@@ -2,11 +2,11 @@
 
 + Abstract:
 
-​    Person  search  aims  to  jointly  localize  and  identify  a query person from natural,  uncropped images,  which has been  actively  studied  in  the  computer  vision  community over the past few years. In this paper, we delve into the rich context  information  globally  and  locally  surrounding  the target person, which we refer to scene and group context,respectively. Unlike previous works that treat the two types of context individually, we exploit them in a unified global-local  context  network  (**GLCNet**)  with  the  intuitive  aim  of feature enhancement.   Specifically,  re-ID embeddings and context  features  are  enhanced  simultaneously  in  a  multi-stage fashion, ultimately leading to enhanced, discriminative features for person search. We conduct the experiments on two person search benchmarks (i.e., CUHK-SYSU and PRW) as well as extend our approach to a more challenging setting (i.e., **character search on MovieNet**).  Extensive experimental results demonstrate the consistent improvement of the proposed GLCNet over the state-of-the-art methods on the three datasets.
+    Person search aims to jointly localize and identify a query person from natural, uncropped images, which has been actively studied in the computer vision community over the past few years. In this paper, we delve into the rich context information globally and locally surrounding the target person, which we refer to scene and group context, respectively. Unlike previous works that treat the two types of context individually, we exploit them in a unified global-local context network (GLCNet) with the intuitive aim of feature enhancement. Specifically, re-ID embeddings and context features are enhanced simultaneously in a multi-stage fashion, ultimately leading to enhanced, discriminative features for person search. We conduct the experiments on two person search benchmarks (i.e., CUHK-SYSU and PRW) as well as extend our approach to a more challenging setting (i.e., character search on MovieNet). Extensive experimental results demonstrate the consistent improvement of the proposed GLCNet over the state-of-the-art methods on the three datasets. Our source codes, pre-trained models, and the new setting for character search are available at: [this https URL](https://github.com/ZhengPeng7/GLCNet).
 
 + Overall architecture of our GLCNet:
 
-![arch](README.assets/arch.svg)
+![arch](README.assets/GLCNet_arch_v2.svg)
 
 ### Performance
 
@@ -28,7 +28,7 @@
 
 + Qualitative Results:
 
-    <img src="README.assets/qual_res.png" />
+    <img src="README.assets/qual_res_allInOne.svg" />
 
 ### Train
 
