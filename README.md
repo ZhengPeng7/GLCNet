@@ -59,7 +59,6 @@ Thanks to the solid codebase from [SeqNet](https://github.com/serend1p1ty/SeqNet
     author   = {Peng Zheng and
                 Jie Qin and
                 Yichao Yan and
-                Shengcai Liao and
                 Bingbing Ni and
                 Xiaogang Cheng and
                 Ling Shao},
