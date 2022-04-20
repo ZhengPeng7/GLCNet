@@ -9,7 +9,7 @@
 
 + Overall architecture of our GLCNet:
 
-![arch](README.assets/GLCNet_arch_v2.svg)
+![arch](https://github.com/ZhengPeng7/GLCNet/blob/main/README.assets/GLCNet_arch_v2.svg)
 
 ### Performance
 
@@ -31,7 +31,7 @@
 
 + Qualitative Results:
 
-    <img src="README.assets/qual_res_allInOne.svg" />
+    <img src="https://github.com/ZhengPeng7/GLCNet/blob/main/README.assets/qual_res_allInOne.svg" />
 
 ### Train
 
