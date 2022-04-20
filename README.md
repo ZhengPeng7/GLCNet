@@ -1,3 +1,6 @@
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/global-local-context-network-for-person/person-search-on-cuhk-sysu)](https://paperswithcode.com/sota/person-search-on-cuhk-sysu?p=global-local-context-network-for-person)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/global-local-context-network-for-person/person-search-on-prw)](https://paperswithcode.com/sota/person-search-on-prw?p=global-local-context-network-for-person)
+
 ### Global-Local Context Network for Person Search
 
 + Abstract:
@@ -19,8 +22,8 @@
 |   [AlignPS+](https://github.com/daodaofr/AlignPS)   |   94.0    |   94.5    |   46.1   |   82.1   |
 |   [SeqNet](https://github.com/serend1p1ty/SeqNet)   |   93.8    |   94.6    |   46.7   |   83.4   |
 |                     SeqNet+CBGM                     |   94.8    |   95.7    | **47.6** |   87.6   |
-|                       GLCNet                        |   95.7    |   96.3    |   46.9   |   85.1   |
-|                     GLCNet+CBGM                     | **96.0**  | **96.3**  | **47.6** | **88.0** |
+|                       GLCNet                        |   95.5    |   96.1    |   46.7   |   84.9   |
+|                     GLCNet+CBGM                     | **95.8**  | **96.2**  | **47.8** | **87.8** |
 
 + Different gallery size on CUHK-SYSU:
 
