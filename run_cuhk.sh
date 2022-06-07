@@ -18,18 +18,18 @@ else let epoch=20*${NGPU}-1
 fi
 
 # Train
-python train.py --cfg configs/${dataset}.yaml
+CUDA_VISIBLE_DEVICES=$1 python train.py --cfg configs/${dataset}.yaml
 
 # Test
 
 # CBGM
-python train.py --cfg ./exp_${dataset}/config.yaml --eval --ckpt ./exp_${dataset}/epoch_${epoch}.pth EVAL_USE_CBGM True
+CUDA_VISIBLE_DEVICES=$1 python train.py --cfg ./exp_${dataset}/config.yaml --eval --ckpt ./exp_${dataset}/epoch_${epoch}.pth EVAL_USE_CBGM True
 
 # using GT bbox
-python train.py --cfg ./exp_${dataset}/config.yaml --eval --ckpt ./exp_${dataset}/epoch_${epoch}.pth EVAL_USE_GT True
+CUDA_VISIBLE_DEVICES=$1 python train.py --cfg ./exp_${dataset}/config.yaml --eval --ckpt ./exp_${dataset}/epoch_${epoch}.pth EVAL_USE_GT True
 
 # CBGM, using GT bbox
-python train.py --cfg ./exp_${dataset}/config.yaml --eval --ckpt ./exp_${dataset}/epoch_${epoch}.pth EVAL_USE_CBGM True EVAL_USE_GT True
+CUDA_VISIBLE_DEVICES=$1 python train.py --cfg ./exp_${dataset}/config.yaml --eval --ckpt ./exp_${dataset}/epoch_${epoch}.pth EVAL_USE_CBGM True EVAL_USE_GT True
 
 
 nvidia-smi
