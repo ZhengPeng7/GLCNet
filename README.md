@@ -1,7 +1,9 @@
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/global-local-context-network-for-person/person-search-on-cuhk-sysu)](https://paperswithcode.com/sota/person-search-on-cuhk-sysu?p=global-local-context-network-for-person)
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/global-local-context-network-for-person/person-search-on-prw)](https://paperswithcode.com/sota/person-search-on-prw?p=global-local-context-network-for-person)
+# GLCNet
+This repo is the official implementation of "**GCoNet+: A Stronger Group Collaborative Co-Salient Object Detector**".
 
-### Global-Local Context Network for Person Search
+[[arXiv](https://arxiv.org/abs/2112.02500)] [[code](https://github.com/ZhengPeng7/GLCNet)] [[stuff](https://drive.google.com/drive/folders/1wbq5jptOGxXDE0ze1tAMdcvXEaE1Wybt)]
+
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/global-local-context-network-for-person/person-search-on-cuhk-sysu)](https://paperswithcode.com/sota/person-search-on-cuhk-sysu?p=global-local-context-network-for-person) [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/global-local-context-network-for-person/person-search-on-prw)](https://paperswithcode.com/sota/person-search-on-prw?p=global-local-context-network-for-person)
 
 + Abstract:
 
