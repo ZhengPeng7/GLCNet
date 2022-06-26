@@ -1,7 +1,7 @@
 OUTPUT_DIR: "./exp_mvn_pretrain"
 INPUT:
   DATASET: "MVN_pretrain"
-  DATA_ROOT: "../../../datasets/ps/mvn"
+  DATA_ROOT: "/root/autodl-tmp/datasets/ps/mvn"
   BATCH_SIZE_TRAIN: 15
   NUM_WORKERS_TRAIN: 10
   MIN_SIZE: 240
