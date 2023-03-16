@@ -1,5 +1,5 @@
 # GLCNet
-This repo is the official implementation of "**GCoNet+: A Stronger Group Collaborative Co-Salient Object Detector**".
+This repo is the official implementation of "**GCoNet+: A Stronger Group Collaborative Co-Salient Object Detector**", ICASSP 2023.
 
 [[arXiv](https://arxiv.org/abs/2112.02500)] [[code](https://github.com/ZhengPeng7/GLCNet)] [[stuff](https://drive.google.com/drive/folders/1wbq5jptOGxXDE0ze1tAMdcvXEaE1Wybt)]
 
@@ -7,7 +7,7 @@ This repo is the official implementation of "**GCoNet+: A Stronger Group Collabo
 
 + Abstract:
 
-    Person search aims to jointly localize and identify a query person from natural, uncropped images, which has been actively studied in the computer vision community over the past few years. In this paper, we delve into the rich context information globally and locally surrounding the target person, which we refer to scene and group context, respectively. Unlike previous works that treat the two types of context individually, we exploit them in a unified global-local context network (GLCNet) with the intuitive aim of feature enhancement. Specifically, re-ID embeddings and context features are enhanced simultaneously in a multi-stage fashion, ultimately leading to enhanced, discriminative features for person search. We conduct the experiments on two person search benchmarks (i.e., CUHK-SYSU and PRW) as well as extend our approach to a more challenging setting (i.e., character search on MovieNet). Extensive experimental results demonstrate the consistent improvement of the proposed GLCNet over the state-of-the-art methods on the three datasets. Our source codes, pre-trained models, and the new setting for character search are available at: [this https URL](https://github.com/ZhengPeng7/GLCNet).
+    Person search aims to jointly localize and identify a query person from natural, uncropped images, which has been actively studied over the past few years. In this paper, we delve into the rich context information globally and locally surrounding the target person, which we refer to as scene and group context, respectively. Unlike previous works that treat the two types of context individually, we exploit them in a unified global-local context network (GLCNet) with the intuitive aim of feature enhancement. Specifically, re-ID embeddings and context features are simultaneously learned in a multi-stage fashion, ultimately leading to enhanced, discriminative features for person search. We conduct the experiments on two person search benchmarks (i.e., CUHK-SYSU and PRW) as well as extend our approach to a more challenging setting (i.e., character search on MovieNet). Extensive experimental results demonstrate the consistent improvement of the proposed GLCNet over the state-of-the-art methods on all three datasets. Our source codes, pre-trained models, and the new dataset are publicly available at: [this https URL](https://github.com/ZhengPeng7/GLCNet).
 
 + Overall architecture of our GLCNet:
 
@@ -70,17 +70,16 @@ Thanks to the solid codebase from [SeqNet](https://github.com/serend1p1ty/SeqNet
 ### Citation
 
 ```bibtex
-@ARTICLE{2021arXiv211202500Z,
-    author   = {Peng Zheng and
-                Jie Qin and
+@inproceedings{GLCNet,
+    author   = {Jie Qin and
+                Peng Zheng and
                 Yichao Yan and
-                Bingbing Ni and
+                Quan Rong and
                 Xiaogang Cheng and
-                Ling Shao},
-    title    = {Global-Local Context Network for Person Search},
-    journal  = {arXiv e-prints},
-    volume   = {abs/2109.00211},
-    year     = {2021}
+                Bingbing Ni},
+    title    = {MovieNet-PS: A Large-Scale Person Search Dataset in the Wild},
+    booktitle  = ICASSP,
+    year     = {2023}
 }
 ```
 
