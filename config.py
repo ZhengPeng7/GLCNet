@@ -41,7 +41,7 @@ class Config():
         self.relu_after_mlp = False
         self.bnRelu_after_conv = False
         self.use_fusion = sum(self.fusion_style.values()) and not self.nae_multi
-        self.fusion_attention = [0, 'sea'][1] if self.cxt_feat or self.psn_feat else 0
+        self.fusion_attention = [0, 'sea'][0] if self.cxt_feat or self.psn_feat else 0
         self.conv_before_fusion_scenario = True
         self.conv_before_fusion_psn = True
 
