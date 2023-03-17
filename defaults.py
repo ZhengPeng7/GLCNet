@@ -19,11 +19,11 @@ _C.INPUT.MAX_SIZE = 1500
 # _C.INPUT.ASPECT_RATIO_GROUPING_TRAIN = False
 
 # Number of images per batch
-_C.INPUT.BATCH_SIZE_TRAIN = 5
+_C.INPUT.BATCH_SIZE_TRAIN = 8
 _C.INPUT.BATCH_SIZE_TEST = 1
 
 # Number of data loading threads
-_C.INPUT.NUM_WORKERS_TRAIN = 5
+_C.INPUT.NUM_WORKERS_TRAIN = 8
 _C.INPUT.NUM_WORKERS_TEST = 1
 
 # -------------------------------------------------------- #
@@ -33,7 +33,6 @@ _C.SOLVER = CN()
 _C.SOLVER.MAX_EPOCHS = 20
 
 # Learning rate settings
-_C.SOLVER.BASE_LR = 0.003
 
 # TODO: add config option WARMUP_EPOCHS
 _C.SOLVER.WARMUP_FACTOR = 1.0 / 1000

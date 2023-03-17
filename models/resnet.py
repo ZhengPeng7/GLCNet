@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 import torch.nn.functional as F
-import torchvision
+from torchvision import models
 from torch import nn
 from config import Config
 from models.modules import SelfAtt, GAM, SpatialGroupEnhance
@@ -25,14 +25,10 @@ class Backbone(nn.Sequential):
         )
 
         self.out_channels = 1024
-        if Config().co_res4:
-            self.co_res4 = SpatialGroupEnhance()
 
     def forward(self, x):
         # using the forward method from nn.Sequential
         feat = self.bb(x)
-        if Config().co_res4:
-            feat = self.co_res4(feat)
         return OrderedDict([["feat_res4", feat]])
 
 
@@ -42,6 +38,10 @@ class Res5Head(nn.Sequential):
         self.out_channels = [1024, 2048]
 
     def forward(self, x):
+        # print(x.shape)
+        # print(list(super(Res5Head, self).modules()))
+        # print('*' * 20)
+        # exit()
         feat = super(Res5Head, self).forward(x)
         x = F.adaptive_max_pool2d(x, 1)
         feat = F.adaptive_max_pool2d(feat, 1)
@@ -49,7 +49,10 @@ class Res5Head(nn.Sequential):
 
 
 def build_resnet(name="resnet50", pretrained=True):
-    resnet = torchvision.models.resnet.__dict__[name](pretrained=pretrained)
+    if name == 'resnet50':
+        resnet = models.resnet.__dict__[name](weights=models.ResNet50_Weights.IMAGENET1K_V2)
+    elif name == 'resnet101':
+        resnet = models.resnet.__dict__[name](weights=models.ResNet101_Weights.IMAGENET1K_V2)
 
     # freeze layers
     resnet.conv1.weight.requires_grad_(False)

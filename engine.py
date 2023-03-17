@@ -162,7 +162,10 @@ def evaluate_performance(
         }
         torch.save(save_dict, "data/eval_cache/eval_cache.pth")
 
-    eval_detection(gallery_loader.dataset, gallery_dets, det_thresh=0.01)
+    try:
+        eval_detection(gallery_loader.dataset, gallery_dets, det_thresh=0.01)
+    except:
+        print('Empty det results.')
     if gallery_loader.dataset.name == "CUHK-SYSU":
         eval_search_cuhk(
             gallery_loader.dataset,

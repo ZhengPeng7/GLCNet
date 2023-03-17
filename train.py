@@ -11,6 +11,10 @@ from defaults import get_default_cfg
 from engine import evaluate_performance, train_one_epoch
 from models.seqnet import SeqNet
 from utils.utils import mkdir, resume_from_ckpt, save_on_master, set_random_seed
+from config import Config
+
+
+config = Config()
 
 
 def main(args):
@@ -50,7 +54,7 @@ def main(args):
     params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.SGD(
         params,
-        lr=cfg.SOLVER.BASE_LR,
+        lr=config.lr,
         momentum=cfg.SOLVER.SGD_MOMENTUM,
         weight_decay=cfg.SOLVER.WEIGHT_DECAY,
     )

@@ -17,12 +17,23 @@ from models.resnet import build_resnet
 from config import Config
 from models.modules import SpatialGroupEnhance, SEAttention
 
+from models.pvt import build_pvt
+
+
+config = Config()
+
 
 class SeqNet(nn.Module):
     def __init__(self, cfg):
         super(SeqNet, self).__init__()
 
-        backbone, box_head = build_resnet(name="resnet50", pretrained=True)
+        if config.bb == 'resnet50':
+            backbone, box_head = build_resnet(name="resnet50", pretrained=True)
+        elif config.bb == 'pvtv2':
+            backbone, box_head = build_pvt(reid_head="resnet50", pretrained=True)
+        else:
+            print('Not a valid backbone in `config.py`')
+            exit()
 
         anchor_generator = AnchorGenerator(
             sizes=((32, 64, 128, 256, 512),), aspect_ratios=((0.5, 1.0, 2.0),)
@@ -59,9 +70,9 @@ class SeqNet(nn.Module):
         fusion_layers_att = []
         fusion_layers_mlp = []
         fusion_layers_conv = []
-        if Config().cxt_feat or Config().psn_feat:
-            if Config().cxt_feat:
-                if Config().conv_before_fusion_scenario:
+        if config.cxt_feat or config.psn_feat:
+            if config.cxt_feat:
+                if config.conv_before_fusion_scenario:
                     self.cxt_feat_extractor_scenario = nn.Sequential(
                         nn.Conv2d(1024, 256, 3, 1, 1),
                         nn.BatchNorm2d(256),
@@ -69,8 +80,8 @@ class SeqNet(nn.Module):
                         nn.Conv2d(256, 256, 3, 1, 1),
                         nn.BatchNorm2d(256),
                         nn.ReLU(inplace=True),
-                        nn.Conv2d(256, Config().cxt_feat_len, 3, 1, 1),
-                        nn.BatchNorm2d(Config().cxt_feat_len),
+                        nn.Conv2d(256, config.cxt_feat_len, 3, 1, 1),
+                        nn.BatchNorm2d(config.cxt_feat_len),
                         nn.ReLU(inplace=True),
                         nn.AdaptiveMaxPool2d(1)
                     )
@@ -78,8 +89,8 @@ class SeqNet(nn.Module):
                     self.cxt_feat_extractor_scenario = nn.Sequential(
                         nn.AdaptiveMaxPool2d(1)
                     )
-            if Config().psn_feat:
-                if Config().conv_before_fusion_psn:
+            if config.psn_feat:
+                if config.conv_before_fusion_psn:
                     self.cxt_feat_extractor_psn = nn.Sequential(
                         nn.Conv2d(2048, 256, 1, 1, 0),
                         nn.BatchNorm2d(256),
@@ -87,8 +98,8 @@ class SeqNet(nn.Module):
                         nn.Conv2d(256, 256, 1, 1, 0),
                         nn.BatchNorm2d(256),
                         nn.ReLU(inplace=True),
-                        nn.Conv2d(256, Config().psn_feat_len, 3, 1, 1),
-                        nn.BatchNorm2d(Config().psn_feat_len),
+                        nn.Conv2d(256, config.psn_feat_len, 3, 1, 1),
+                        nn.BatchNorm2d(config.psn_feat_len),
                         nn.ReLU(inplace=True),
                         nn.AdaptiveMaxPool2d(1)
                     )
@@ -96,25 +107,25 @@ class SeqNet(nn.Module):
                     self.cxt_feat_extractor_psn = nn.Sequential(
                         nn.AdaptiveMaxPool2d(1)
                     )
-            if Config().use_fusion:
-                if Config().fusion_attention == 'sea':
+            if config.use_fusion:
+                if config.fusion_attention == 'sea':
                     fusion_layers_att.append(
-                        SEAttention(Config().feat_cxt_reid_len)
+                        SEAttention(config.feat_cxt_reid_len)
                     )
                 channel_opt = 2048
-                for k, v in Config().fusion_style.items():
+                for k, v in config.fusion_style.items():
                     for idx_layer in range(v):
                         if not idx_layer:
-                            channel_ipt = Config().feat_cxt_reid_len
+                            channel_ipt = config.feat_cxt_reid_len
                         else:
                             channel_ipt = channel_opt
                         if k == 'mlp':
                             fusion_layers_mlp.append(nn.Linear(channel_ipt, channel_opt))
-                            if Config().relu_after_mlp:
+                            if config.relu_after_mlp:
                                 fusion_layers_mlp.append(nn.ReLU(inplace=True))
                         elif k == 'conv':
                             fusion_layers_conv.append(nn.Conv1d(channel_ipt, channel_opt, 1, 1))
-                            if Config().bnRelu_after_conv:
+                            if config.bnRelu_after_conv:
                                 fusion_layers_conv.append(nn.BatchNorm1d(channel_opt))
                                 fusion_layers_conv.append(nn.ReLU(inplace=True))
         self.fuser_att = nn.Sequential(*fusion_layers_att)
@@ -142,9 +153,9 @@ class SeqNet(nn.Module):
             score_thresh=cfg.MODEL.ROI_HEAD.SCORE_THRESH_TEST,
             nms_thresh=cfg.MODEL.ROI_HEAD.NMS_THRESH_TEST,
             detections_per_img=cfg.MODEL.ROI_HEAD.DETECTIONS_PER_IMAGE_TEST,
-            cxt_feat_extractor_scenario=self.cxt_feat_extractor_scenario if Config().cxt_feat else None,
-            cxt_feat_extractor_psn=self.cxt_feat_extractor_psn if Config().psn_feat else None,
-            fuser=self.fuser if Config().use_fusion else [[], [], []],
+            cxt_feat_extractor_scenario=self.cxt_feat_extractor_scenario if config.cxt_feat else None,
+            cxt_feat_extractor_psn=self.cxt_feat_extractor_psn if config.psn_feat else None,
+            fuser=self.fuser if config.use_fusion else [[], [], []],
         )
 
         transform = GeneralizedRCNNTransform(
@@ -186,18 +197,18 @@ class SeqNet(nn.Module):
             boxes = [t["boxes"] for t in targets]
             box_features = self.roi_heads.box_roi_pool(features, boxes, images.image_sizes)
             box_features = self.roi_heads.reid_head(box_features)
-            if Config().cxt_feat or Config().psn_feat:
+            if config.cxt_feat or config.psn_feat:
                 feat_res5_ori = box_features['feat_res5']
-                if Config().cxt_feat:
+                if config.cxt_feat:
                     cxt_feat_scenario = self.cxt_feat_extractor_scenario(features['feat_res4']).squeeze(-1)
                     cxt_feat_scenario_proposalNum = torch.cat([
                         cxt_feat_scenario[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
                         ], dim=0)
-                    if Config().nae_multi:
+                    if config.nae_multi:
                         box_features['cxt_scenario'] = cxt_feat_scenario_proposalNum.unsqueeze(-1)
                     else:
                         box_features["feat_res5"] = torch.cat([box_features["feat_res5"], cxt_feat_scenario_proposalNum.unsqueeze(-1)], 1)
-                if Config().psn_feat:
+                if config.psn_feat:
                     feat_res5_per_image = []
                     num_box = 0
                     for box in boxes:
@@ -211,18 +222,18 @@ class SeqNet(nn.Module):
                     cxt_feat_psn_proposalNum = torch.cat([
                         cxt_feat_psn_per_image[idx_bs].repeat(box.shape[0], 1, 1, 1) for idx_bs, box in enumerate(boxes)
                         ], dim=0)
-                    if Config().nae_multi:
+                    if config.nae_multi:
                         box_features['cxt_psn'] = cxt_feat_psn_proposalNum
                     else:
                         box_features["feat_res5"] = torch.cat([box_features["feat_res5"], cxt_feat_psn_proposalNum], 1)
-                if not Config().nae_multi:
+                if not config.nae_multi:
                     if self.fuser_att:
                         box_features["feat_res5"] = self.fuser_att(box_features["feat_res5"])
                     if self.fuser_mlp:
                         box_features["feat_res5"] = self.fuser_mlp(box_features["feat_res5"].squeeze(-1).squeeze(-1)).unsqueeze(-1).unsqueeze(-1)
                     elif self.fuser_conv:
                         box_features["feat_res5"] = self.fuser_conv(box_features["feat_res5"].squeeze(-1)).unsqueeze(-1)
-            embeddings, _ = self.roi_heads.embedding_head(box_features if Config().nae_mix_res4 or Config().nae_multi else OrderedDict([['feat_res5', box_features["feat_res5"]]]))
+            embeddings, _ = self.roi_heads.embedding_head(box_features if config.nae_mix_res4 or config.nae_multi else OrderedDict([['feat_res5', box_features["feat_res5"]]]))
             return embeddings.split(1, 0)
         else:
             # gallery
@@ -279,27 +290,27 @@ class SeqRoIHeads(RoIHeads):
         **kwargs
     ):
         super(SeqRoIHeads, self).__init__(*args, **kwargs)
-        if not Config().nae_multi:
-            if Config().nae_mix_res4:
+        if not config.nae_multi:
+            if config.nae_mix_res4:
                 featmap_names = ['feat_res4', 'feat_res5']
-                in_channels=[1024, Config().nae_norm2_len]
+                in_channels=[1024, config.nae_norm2_len]
             else:
                 featmap_names = ['feat_res5']
-                in_channels=[Config().nae_norm2_len]
+                in_channels=[config.nae_norm2_len]
         else:
             featmap_names = ['feat_res4', 'feat_res5']
-            in_channels=[1024, Config().nae_norm2_len]
-            if Config().cxt_feat:
+            in_channels=[1024, config.nae_norm2_len]
+            if config.cxt_feat:
                 featmap_names.append('cxt_scenario')
-                in_channels.append(Config().cxt_feat_len)
-            if Config().psn_feat:
+                in_channels.append(config.cxt_feat_len)
+            if config.psn_feat:
                 featmap_names.append('cxt_psn')
-                in_channels.append(Config().psn_feat_len)
+                in_channels.append(config.psn_feat_len)
         self.embedding_head = NormAwareEmbedding(
             featmap_names=featmap_names,
             in_channels=in_channels
         )
-        self.reid_loss = OIMLoss(sum(Config().nae_dims), num_pids, num_cq_size, oim_momentum, oim_scalar)
+        self.reid_loss = OIMLoss(sum(config.nae_dims), num_pids, num_cq_size, oim_momentum, oim_scalar)
         self.faster_rcnn_predictor = faster_rcnn_predictor
         self.reid_head = reid_head
         # rename the method inherited from parent class
@@ -338,11 +349,11 @@ class SeqRoIHeads(RoIHeads):
                 proposal_cls_scores, proposal_regs, proposals, image_shapes
             )
         
-        if Config().psn_feat:
+        if config.psn_feat:
             if self.training:
                 psn_selections = []
                 for box_pid_label in box_pid_labels:
-                    if Config().psn_feat_labelledOnly:
+                    if config.psn_feat_labelledOnly:
                         psn_selections.append((0 < box_pid_label < 5555).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1))
                     else:
                         psn_selections.append((box_pid_label > 0).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1))
@@ -361,16 +372,16 @@ class SeqRoIHeads(RoIHeads):
             gt_box_features = self.box_roi_pool(features, gt_box, image_shapes)
             gt_box_features = self.reid_head(gt_box_features)
             feat_res5_ori = gt_box_features['feat_res5']
-            if Config().cxt_feat:
+            if config.cxt_feat:
                 cxt_feat_scenario = self.cxt_feat_extractor_scenario(features['feat_res4']).squeeze(-1)
                 cxt_feat_scenario_proposalNum = torch.cat([
                     cxt_feat_scenario[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(gt_box)
                     ], dim=0)
-                if Config().nae_multi:
+                if config.nae_multi:
                     gt_box_features['cxt_scenario'] = cxt_feat_scenario_proposalNum.unsqueeze(-1)
                 else:
                     gt_box_features["feat_res5"] = torch.cat([gt_box_features["feat_res5"], cxt_feat_scenario_proposalNum.unsqueeze(-1)], 1)
-            if Config().psn_feat:
+            if config.psn_feat:
                 feat_res5_per_image = []
                 num_box = 0
                 for box in boxes:
@@ -384,18 +395,18 @@ class SeqRoIHeads(RoIHeads):
                 cxt_feat_psn_proposalNum = torch.cat([
                     cxt_feat_psn_per_image[idx_bs].repeat(box.shape[0], 1, 1, 1) for idx_bs, box in enumerate(gt_box)
                     ], dim=0)
-                if Config().nae_multi:
+                if config.nae_multi:
                     gt_box_features['cxt_psn'] = cxt_feat_psn_proposalNum
                 else:
                     gt_box_features["feat_res5"] = torch.cat([gt_box_features["feat_res5"], cxt_feat_psn_proposalNum], 1)
-            if not Config().nae_multi:
+            if not config.nae_multi:
                 if self.fuser_att:
                     gt_box_features["feat_res5"] = self.fuser_att(gt_box_features["feat_res5"])
                 if self.fuser_mlp:
                     gt_box_features["feat_res5"] = self.fuser_mlp(gt_box_features["feat_res5"].squeeze(-1).squeeze(-1)).unsqueeze(-1).unsqueeze(-1)
                 elif self.fuser_conv:
                     gt_box_features["feat_res5"] = self.fuser_conv(gt_box_features["feat_res5"].squeeze(-1)).unsqueeze(-1)
-            embeddings, _ = self.embedding_head(gt_box_features if Config().nae_mix_res4 or Config().nae_multi else OrderedDict([['feat_res5', gt_box_features["feat_res5"]]]))
+            embeddings, _ = self.embedding_head(gt_box_features if config.nae_mix_res4 or config.nae_multi else OrderedDict([['feat_res5', gt_box_features["feat_res5"]]]))
             gt_det = {"boxes": targets[0]["boxes"], "embeddings": embeddings}
 
         # no detection predicted by Faster R-CNN head in test phase
@@ -404,25 +415,25 @@ class SeqRoIHeads(RoIHeads):
             boxes = gt_det["boxes"] if gt_det else torch.zeros(0, 4)
             labels = torch.ones(1).type_as(boxes) if gt_det else torch.zeros(0)
             scores = torch.ones(1).type_as(boxes) if gt_det else torch.zeros(0)
-            embeddings = gt_det["embeddings"] if gt_det else torch.zeros(0, sum(Config().nae_dims))
+            embeddings = gt_det["embeddings"] if gt_det else torch.zeros(0, sum(config.nae_dims))
             return [dict(boxes=boxes, labels=labels, scores=scores, embeddings=embeddings)], []
 
         # --------------------- Baseline head -------------------- #
         box_features = self.box_roi_pool(features, boxes, image_shapes)
         box_features = self.reid_head(box_features)
         box_regs = self.box_predictor(box_features["feat_res5"])
-        if Config().cxt_feat or Config().psn_feat:
+        if config.cxt_feat or config.psn_feat:
             feat_res5_ori = box_features['feat_res5']
-            if Config().cxt_feat:
+            if config.cxt_feat:
                 cxt_feat_scenario = self.cxt_feat_extractor_scenario(features['feat_res4']).squeeze(-1)
                 cxt_feat_scenario_proposalNum = torch.cat([
                     cxt_feat_scenario[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
                     ], dim=0)
-                if Config().nae_multi:
+                if config.nae_multi:
                     box_features['cxt_scenario'] = cxt_feat_scenario_proposalNum.unsqueeze(-1)
                 else:
                     box_features["feat_res5"] = torch.cat([box_features["feat_res5"], cxt_feat_scenario_proposalNum.unsqueeze(-1)], 1)
-            if Config().psn_feat:
+            if config.psn_feat:
                 feat_res5_per_image = []
                 num_box = 0
                 for box in boxes:
@@ -440,18 +451,18 @@ class SeqRoIHeads(RoIHeads):
                 cxt_feat_psn_proposalNum = torch.cat([
                     cxt_feat_psn_per_image[idx_bs].repeat(box.shape[0], 1, 1, 1) for idx_bs, box in enumerate(boxes)
                     ], dim=0)
-                if Config().nae_multi:
+                if config.nae_multi:
                     box_features['cxt_psn'] = cxt_feat_psn_proposalNum
                 else:
                     box_features["feat_res5"] = torch.cat([box_features["feat_res5"], cxt_feat_psn_proposalNum], 1)
-            if not Config().nae_multi:
+            if not config.nae_multi:
                 if self.fuser_att:
                     box_features["feat_res5"] = self.fuser_att(box_features["feat_res5"])
                 if self.fuser_mlp:
                     box_features["feat_res5"] = self.fuser_mlp(box_features["feat_res5"].squeeze(-1).squeeze(-1)).unsqueeze(-1).unsqueeze(-1)
                 elif self.fuser_conv:
                     box_features["feat_res5"] = self.fuser_conv(box_features["feat_res5"].squeeze(-1)).unsqueeze(-1)
-        box_embeddings, box_cls_scores = self.embedding_head(box_features if Config().nae_mix_res4 or Config().nae_multi else OrderedDict([['feat_res5', box_features["feat_res5"]]]))
+        box_embeddings, box_cls_scores = self.embedding_head(box_features if config.nae_mix_res4 or config.nae_multi else OrderedDict([['feat_res5', box_features["feat_res5"]]]))
         if box_cls_scores.dim() == 0:
             box_cls_scores = box_cls_scores.unsqueeze(0)
 
@@ -470,7 +481,9 @@ class SeqRoIHeads(RoIHeads):
                 box_reg_targets,
             )
             loss_box_reid = self.reid_loss(box_embeddings, box_pid_labels)
-            losses.update(loss_box_reid=loss_box_reid)
+            losses.update(loss_box_reid=0.0 if torch.isnan(loss_box_reid) else loss_box_reid)
+            # the return value of cross_entropy() in pytorch was changed from `0.0 to nan` when target.numel() == 0.
+            # reference: https://github.com/pytorch/pytorch/issues/50224 
         else:
             # The IoUs of these boxes are higher than that of proposals,
             # so a higher NMS threshold is needed
@@ -621,7 +634,7 @@ class NormAwareEmbedding(nn.Module):
     Chen, Di, et al. "Norm-aware embedding for efficient person search." CVPR 2020.
     """
 
-    def __init__(self, featmap_names=["feat_res4", "feat_res5"], in_channels=[1024, 2048], dim=Config().nae_dims):
+    def __init__(self, featmap_names=["feat_res4", "feat_res5"], in_channels=[1024, 2048], dim=config.nae_dims):
         super(NormAwareEmbedding, self).__init__()
         self.featmap_names = featmap_names
         self.in_channels = in_channels
@@ -641,7 +654,7 @@ class NormAwareEmbedding(nn.Module):
             self.projectors[ftname] = proj
 
         self.rescaler = []
-        if Config().bn_feature_seperately:
+        if config.bn_feature_seperately:
             for _ in dim:
                 self.rescaler.append(nn.BatchNorm1d(1, affine=True))
         else:
@@ -667,7 +680,7 @@ class NormAwareEmbedding(nn.Module):
             norms = self.rescaler(norms).squeeze()
             return embeddings, norms
         else:
-            if Config().bn_feature_seperately:
+            if config.bn_feature_seperately:
                 embeddings = []
                 norms = []
                 for idx_fm, (k, v) in enumerate(featmaps.items()):

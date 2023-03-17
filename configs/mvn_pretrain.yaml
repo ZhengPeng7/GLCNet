@@ -1,14 +1,13 @@
 OUTPUT_DIR: "./exp_mvn_pretrain"
 INPUT:
   DATASET: "MVN_pretrain"
-  DATA_ROOT: "/root/autodl-tmp/datasets/ps/mvn"
-  BATCH_SIZE_TRAIN: 15
-  NUM_WORKERS_TRAIN: 10
+  DATA_ROOT: "/mnt/workspace/workgroup/mohe/datasets/ps/mvn"
+  BATCH_SIZE_TRAIN: 32
   MIN_SIZE: 240
   MAX_SIZE: 720
 SOLVER:
   MAX_EPOCHS: 10
-  BASE_LR: 0.008
+  LR_DECAY_MILESTONES: [1e5]
 MODEL:
   LOSS:
     LUT_SIZE: 3087

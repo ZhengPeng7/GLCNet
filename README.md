@@ -38,17 +38,18 @@ This repo is the official implementation of "**GCoNet+: A Stronger Group Collabo
 ### Env
 
 ```
-python >= 3.6
-PyTorch >= 1.8.2 (LTS)
+python=3.8
+PyTorch==1.13.1
+torchvision==0.14.1
 pip install scipy tabulate scikit-learn yacs fvcore tensorboard
 ```
 
 ### Train
 
-`sh ./run_${DATASET}.sh`
+`sh ./run_${DATASET}.sh CUDA_DEVICE`
 
 ### Test
-`sh ./test_${DATASET}.sh`
+`sh ./test_${DATASET}.sh CUDA_DEVICE`
 
 ### Inference
 Run the `demo.py` to make inference on given images. GLCNet runs at **10.3 fps** on a single Tesla V100 GPU with batch_size 3.

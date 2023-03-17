@@ -7,6 +7,11 @@ from .cuhk_sysu import CUHKSYSU
 from .prw import PRW
 from .mvn import MVN
 
+from config import Config
+
+
+config = Config()
+
 
 def print_statistics(dataset):
     """

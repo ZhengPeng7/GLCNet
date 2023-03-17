@@ -1,9 +1,18 @@
+import math
+from defaults import get_default_cfg
+
+
+cfg = get_default_cfg()
+
+
 class Config():
     def __init__(self) -> None:
-        # extensions
-        self.co_res4 = False
-        self.co_res5 = False
+        self.lr = 0.003 * math.sqrt(cfg.INPUT.BATCH_SIZE_TRAIN / 5)  # adapt the lr linearly
+        self.bb = ['resnet50', 'pvtv2'][0]
+        self.pvt_weights = ['/mnt/workspace/workgroup/mohe/weights/pvt_v2_b2.pth', ''][0]
+        self.freeze_bb = False
 
+        # Context Features
         self.cxt_feat = True
         self.psn_feat = False
         self.psn_feat_labelledOnly = False
@@ -31,7 +40,7 @@ class Config():
         }
         self.relu_after_mlp = False
         self.bnRelu_after_conv = False
-        self.use_fusion = sum(self.fusion_style.values()) and not Config().nae_multi
+        self.use_fusion = sum(self.fusion_style.values()) and not self.nae_multi
         self.fusion_attention = [0, 'sea'][1] if self.cxt_feat or self.psn_feat else 0
         self.conv_before_fusion_scenario = True
         self.conv_before_fusion_psn = True
