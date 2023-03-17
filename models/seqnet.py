@@ -483,7 +483,7 @@ class SeqRoIHeads(RoIHeads):
             loss_box_reid = self.reid_loss(box_embeddings, box_pid_labels)
             losses.update(loss_box_reid=0.0 if torch.isnan(loss_box_reid) else loss_box_reid)
             # the return value of cross_entropy() in pytorch was changed from `0.0 to nan` when target.numel() == 0.
-            # reference: https://github.com/pytorch/pytorch/issues/50224 
+            # reference: https://github.com/pytorch/pytorch/issues/50224
         else:
             # The IoUs of these boxes are higher than that of proposals,
             # so a higher NMS threshold is needed

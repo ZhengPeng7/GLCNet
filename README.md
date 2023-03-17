@@ -41,7 +41,7 @@ This repo is the official implementation of "**GCoNet+: A Stronger Group Collabo
 python=3.8
 PyTorch==1.13.1
 torchvision==0.14.1
-pip install scipy tabulate scikit-learn yacs fvcore tensorboard
+pip install -r requirements.txt
 ```
 
 ### Train
