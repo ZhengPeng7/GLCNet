@@ -63,7 +63,7 @@ def main(args):
         optimizer, milestones=cfg.SOLVER.LR_DECAY_MILESTONES, gamma=0.1
     )
 
-    start_epoch = 0
+    start_epoch = 1
     if args.resume:
         assert args.ckpt, "--ckpt must be specified when --resume enabled"
         start_epoch = resume_from_ckpt(args.ckpt, model, optimizer, lr_scheduler) + 1
@@ -86,11 +86,11 @@ def main(args):
 
     print("Start training")
     start_time = time.time()
-    for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS):
+    for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS+1):
         train_one_epoch(cfg, model, optimizer, train_loader, device, epoch, tfboard)
         lr_scheduler.step()
 
-        if (epoch + 1) % cfg.CKPT_PERIOD == 0 or epoch >= cfg.SOLVER.MAX_EPOCHS - 1 and epoch > 13:
+        if epoch % cfg.CKPT_PERIOD == 0 or epoch >= cfg.SOLVER.MAX_EPOCHS and epoch >= 10:
             save_on_master(
                 {
                     "model": model.state_dict(),
@@ -105,7 +105,7 @@ def main(args):
             eval_epoch = 5
         else:
             eval_epoch = cfg.EVAL_PERIOD
-        if (epoch + 1) % eval_epoch == 0 or epoch == cfg.SOLVER.MAX_EPOCHS - 1:
+        if epoch % eval_epoch == 0 or epoch >= cfg.SOLVER.MAX_EPOCHS:
             evaluate_performance(
                 model,
                 gallery_loader,
