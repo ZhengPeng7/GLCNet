@@ -7,7 +7,7 @@
 # cuhk / prw / mvn
 ckpt_dataset='mvn'
 dataset="mvn"
-epoch=20
+epoch=18
 
 # Test
 # CBGM

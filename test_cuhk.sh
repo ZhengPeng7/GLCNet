@@ -5,7 +5,7 @@
 
 
 dataset="cuhk"
-epoch=17
+epoch=18
 
 # Test
 # CBGM

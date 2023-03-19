@@ -5,7 +5,7 @@
 
 
 dataset="prw"
-epoch=17
+epoch=18
 
 # Test
 # CBGM

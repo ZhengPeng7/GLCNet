@@ -79,7 +79,7 @@ def eval_detection(
     det_rate = count_tp * 1.0 / count_gt
     ap = average_precision_score(y_true, y_score) * det_rate
 
-    print("{} detection:".format("labeled only" if labeled_only else "all"))
+    print("\n{} detection:".format("labeled only" if labeled_only else "all"))
     print("  recall = {:.2%}".format(det_rate))
     if not labeled_only:
         print("  ap = {:.2%}".format(ap))
