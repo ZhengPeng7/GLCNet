@@ -7,7 +7,7 @@ from torch import nn
 from config import Config
 from models.modules import SelfAtt, GAM, SpatialGroupEnhance
 
-from models.bb_pvtv2 import pvt_v2_b2
+from models.bb_convnextv2 import convnextv2_base, convnextv2_tiny
 from config import Config
 
 
@@ -44,10 +44,11 @@ class Res4Head(nn.Sequential):
         return OrderedDict([["feat_res3", x], ["feat_res4", feat]])
 
 
-def build_pvt():
-    bb_model = pvt_v2_b2()
-    if config.pvt_weights:
-        save_model = torch.load(config.pvt_weights)
+def build_cnx():
+    convnext_type = ['tiny', 'base']
+    bb_model = eval('convnextv2_' + convnext_type)()
+    if config.cnx_weights:
+        save_model = torch.load(config.cnx_weights)
         model_dict = bb_model.state_dict()
         state_dict = {k: v for k, v in save_model.items() if k in model_dict.keys()}
         model_dict.update(state_dict)

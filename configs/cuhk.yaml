@@ -2,10 +2,10 @@ OUTPUT_DIR: "./exp_cuhk"
 INPUT:
   DATASET: "CUHK-SYSU"
   DATA_ROOT: "/mnt/workspace/workgroup/mohe/datasets/ps/cuhk_sysu"
-  BATCH_SIZE_TRAIN: 8
+  BATCH_SIZE_TRAIN: 5
 SOLVER:
-  MAX_EPOCHS: 20
-  LR_DECAY_MILESTONES: [14]
+  MAX_EPOCHS: 18
+  LR_DECAY_MILESTONES: [11]
 MODEL:
   LOSS:
     LUT_SIZE: 5532

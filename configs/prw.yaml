@@ -2,10 +2,10 @@ OUTPUT_DIR: "./exp_prw"
 INPUT:
   DATASET: "PRW"
   DATA_ROOT: "/mnt/workspace/workgroup/mohe/datasets/ps/prw"
-  BATCH_SIZE_TRAIN: 8
+  BATCH_SIZE_TRAIN: 5
 SOLVER:
-  MAX_EPOCHS: 20
-  LR_DECAY_MILESTONES: [11]
+  MAX_EPOCHS: 18
+  LR_DECAY_MILESTONES: [10]
 MODEL:
   LOSS:
     LUT_SIZE: 482
