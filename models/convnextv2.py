@@ -45,7 +45,7 @@ class Res4Head(nn.Sequential):
 
 
 def build_cnx():
-    convnext_type = ['tiny', 'base']
+    convnext_type = ['tiny', 'base'][1]
     bb_model = eval('convnextv2_' + convnext_type)()
     if config.cnx_weights:
         save_model = torch.load(config.cnx_weights)
