@@ -1,7 +1,16 @@
-# GLCNet
-This repo is the official implementation of "**GCoNet+: A Stronger Group Collaborative Co-Salient Object Detector**", ICASSP 2023.
+# <p align=center>`Global-Local Context Network for Person Search`</p>
 
-[[arXiv](https://arxiv.org/abs/2112.02500)] [[code](https://github.com/ZhengPeng7/GLCNet)] [[stuff](https://drive.google.com/drive/folders/1wbq5jptOGxXDE0ze1tAMdcvXEaE1Wybt)]
+This repo is the official implementation of "[**Global-Local Context Network for Person Search**](https://arxiv.org/pdf/2112.02500.pdf)" (___ICASSP 2023___).
+
+> **Authors:**
+> [Jie Qin](https://scholar.google.com/citations?user=mhPGcuwAAAAJ),
+> [Peng Zheng](https://scholar.google.com/citations?user=TZRzWOsAAAAJ),
+> [Yichao Yan](https://scholar.google.com/citations?user=ZPHMMRkAAAAJ),
+> [Quan Rong](https://ieeexplore.ieee.org/author/37086038231),
+> [Xiaogang Cheng](https://scholar.google.se/citations?user=y6SrwJgAAAAJ), &
+> [Bingbing Ni](https://scholar.google.com/citations?user=eUbmKwYAAAAJ).
+
+[[arXiv](https://arxiv.org/pdf/2112.02500.pdf)] [[code](https://github.com/ZhengPeng7/GLCNet)] [[stuff](https://drive.google.com/drive/folders/1wbq5jptOGxXDE0ze1tAMdcvXEaE1Wybt)]
 
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/global-local-context-network-for-person/person-search-on-cuhk-sysu)](https://paperswithcode.com/sota/person-search-on-cuhk-sysu?p=global-local-context-network-for-person) [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/global-local-context-network-for-person/person-search-on-prw)](https://paperswithcode.com/sota/person-search-on-prw?p=global-local-context-network-for-person)
 
