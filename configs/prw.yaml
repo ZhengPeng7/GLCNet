@@ -1,8 +1,8 @@
 OUTPUT_DIR: "./exp_prw"
 INPUT:
   DATASET: "PRW"
-  DATA_ROOT: "/mnt/workspace/workgroup/mohe/datasets/ps/prw"
-  BATCH_SIZE_TRAIN: 5
+  DATA_ROOT: "/root/autodl-tmp/datasets/ps/prw"
+  BATCH_SIZE_TRAIN: 3
 SOLVER:
   MAX_EPOCHS: 18
   LR_DECAY_MILESTONES: [10]

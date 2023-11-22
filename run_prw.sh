@@ -2,7 +2,7 @@
 dataset="prw"
 
 # Train
-CUDA_VISIBLE_DEVICES=$1 python train.py --cfg configs/${dataset}.yaml
+CUDA_VISIBLE_DEVICES=${1:-0} python train.py --cfg configs/${dataset}.yaml
 
 # # Test
 

@@ -9,8 +9,8 @@ class Config():
     def __init__(self) -> None:
         self.lr = 0.003 * math.sqrt(cfg.INPUT.BATCH_SIZE_TRAIN / 5)  # adapt the lr linearly
         self.bb = ['resnet50', 'pvtv2', 'convnextv2'][0]
-        self.pvt_weights = ['/mnt/workspace/workgroup/mohe/weights/pvt_v2_b2.pth', ''][0]
-        self.cnx_weights = ['/mnt/workspace/workgroup/mohe/weights/convnextv2_base_1k_224_ema.pt', ''][0]
+        self.pvt_weights = ['/root/autodl-tmp/weights/pvt_v2_b2.pth', ''][0]
+        self.cnx_weights = ['/root/autodl-tmp/weights/convnextv2_base_1k_224_ema.pt', ''][0]
         self.freeze_bb = False
         if 'resnet' in self.bb:
             self.bb_out_channels = [1024, 2048]

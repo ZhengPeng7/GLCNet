@@ -9,3 +9,4 @@ yacs
 future
 tensorboard
 fvcore
+timm
