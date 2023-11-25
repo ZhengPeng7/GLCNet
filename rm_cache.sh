@@ -4,3 +4,4 @@ rm -rf exp_*
 rm -rf data/
 rm *.out
 
+clear

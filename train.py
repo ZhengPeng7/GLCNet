@@ -86,27 +86,17 @@ def main(args):
 
     print("Start training")
     start_time = time.time()
+    mAPs = []
     for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS+1):
         train_one_epoch(cfg, model, optimizer, train_loader, device, epoch, tfboard)
         lr_scheduler.step()
-
-        if epoch % cfg.CKPT_PERIOD == 0 or epoch >= cfg.SOLVER.MAX_EPOCHS and epoch >= 10:
-            save_on_master(
-                {
-                    "model": model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
-                    "lr_scheduler": lr_scheduler.state_dict(),
-                    "epoch": epoch,
-                },
-                osp.join(output_dir, f"epoch_{epoch}.pth"),
-            )
 
         if cfg.INPUT.DATASET == 'MVN':
             eval_epoch = 5
         else:
             eval_epoch = cfg.EVAL_PERIOD
         if epoch % eval_epoch == 0 or epoch >= cfg.SOLVER.MAX_EPOCHS:
-            evaluate_performance(
+            mAP = evaluate_performance(
                 model,
                 gallery_loader,
                 query_loader,
@@ -114,6 +104,20 @@ def main(args):
                 use_gt=cfg.EVAL_USE_GT,
                 use_cache=cfg.EVAL_USE_CACHE,
                 use_cbgm=cfg.EVAL_USE_CBGM,
+            )
+            mAPs.append(mAP)
+        else:
+            mAPs.append(0)
+
+        if max(mAPs) == mAP:
+            save_on_master(
+                {
+                    "model": model.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "lr_scheduler": lr_scheduler.state_dict(),
+                    "epoch": epoch,
+                },
+                [osp.join(output_dir, f"epoch_{epoch}.pth"), osp.join(output_dir, "epoch_best.pth")][1],
             )
 
     if tfboard:

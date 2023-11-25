@@ -47,9 +47,7 @@ This repo is the official implementation of "[**Global-Local Context Network for
 ### Env
 
 ```
-python=3.8
-PyTorch==1.13.1
-torchvision==0.14.1
+conda create -n glc python=3.8 -y && conda activate glc
 pip install -r requirements.txt
 ```
 

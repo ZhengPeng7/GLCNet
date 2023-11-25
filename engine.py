@@ -165,7 +165,7 @@ def evaluate_performance(
     try:
         eval_detection(gallery_loader.dataset, gallery_dets, det_thresh=0.01)
         if gallery_loader.dataset.name == "CUHK-SYSU":
-            eval_search_cuhk(
+            ret = eval_search_cuhk(
                 gallery_loader.dataset,
                 query_loader.dataset,
                 gallery_dets,
@@ -177,7 +177,7 @@ def evaluate_performance(
                 gallery_size=100,
             )
         elif gallery_loader.dataset.name == "PRW":
-            eval_search_prw(
+            ret = eval_search_prw(
                 gallery_loader.dataset,
                 query_loader.dataset,
                 gallery_dets,
@@ -188,7 +188,7 @@ def evaluate_performance(
                 cbgm=use_cbgm,
             )
         elif gallery_loader.dataset.name == "MVN":
-            eval_search_mvn(
+            ret = eval_search_mvn(
                 gallery_loader.dataset,
                 query_loader.dataset,
                 gallery_dets,
@@ -199,5 +199,8 @@ def evaluate_performance(
                 cbgm=use_cbgm,
                 gallery_size=ConfigMVN().gallery_size,
             )
+        mAP = ret["mAP"]
     except:
         print('Empty det results. Skip this eval.')
+        mAP = 0
+    return mAP

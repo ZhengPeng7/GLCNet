@@ -49,7 +49,7 @@ class Res4Head(nn.Sequential):
 
 
 def build_resnet50(pretrained=True):
-    bb_model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2 if pretrained else None)
+    bb_model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1 if pretrained else None)
 
     # freeze layers
     bb_model.conv1.weight.requires_grad_(False)
@@ -60,7 +60,7 @@ def build_resnet50(pretrained=True):
 
 
 def build_resnet18(pretrained=True):
-    bb_model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V2 if pretrained else None)
+    bb_model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1 if pretrained else None)
 
     # freeze layers
     bb_model.conv1.weight.requires_grad_(False)
@@ -71,7 +71,7 @@ def build_resnet18(pretrained=True):
 
 
 def build_resnet101(pretrained=True):
-    bb_model = resnet101(weights=ResNet101_Weights.IMAGENET1K_V2 if pretrained else None)
+    bb_model = resnet101(weights=ResNet101_Weights.IMAGENET1K_V1 if pretrained else None)
 
     # freeze layers
     bb_model.conv1.weight.requires_grad_(False)
