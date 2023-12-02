@@ -13,6 +13,7 @@ from models.seqnet import SeqNet
 from utils.utils import mkdir, resume_from_ckpt, save_on_master, set_random_seed
 from config import Config
 
+from losses.softmax_loss import SoftmaxLoss
 
 config = Config()
 
@@ -95,7 +96,7 @@ def main(args):
             eval_epoch = 5
         else:
             eval_epoch = cfg.EVAL_PERIOD
-        if epoch % eval_epoch == 0 or epoch >= cfg.SOLVER.MAX_EPOCHS:
+        if epoch >= cfg.SOLVER.MAX_EPOCHS or (epoch % eval_epoch == 0 and epoch > 10):
             mAP = evaluate_performance(
                 model,
                 gallery_loader,
@@ -105,11 +106,11 @@ def main(args):
                 use_cache=cfg.EVAL_USE_CACHE,
                 use_cbgm=cfg.EVAL_USE_CBGM,
             )
-            mAPs.append(mAP)
         else:
-            mAPs.append(0)
-
-        if max(mAPs) == mAP:
+            mAP = 0
+        mAPs.append(mAP)
+        if max(mAPs) > mAP:
+            print('Saving the best model with mAP {}...'.format(mAP))
             save_on_master(
                 {
                     "model": model.state_dict(),

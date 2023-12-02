@@ -12,13 +12,15 @@ from torchvision.models.detection.transform import GeneralizedRCNNTransform
 from torchvision.ops import MultiScaleRoIAlign
 from torchvision.ops import boxes as box_ops
 
-from models.oim import OIMLoss
+from losses.oim import OIMLoss
 from config import Config
 from models.modules import SpatialGroupEnhance, SEAttention
 
 from models.resnet import build_resnet50
 from models.pvt import build_pvt
 from models.convnextv2 import build_cnx
+
+from models.cxt_ext import ContextExtractorSceneConvs, ContextExtractorSceneConvs2
 
 
 config = Config()
@@ -76,18 +78,7 @@ class SeqNet(nn.Module):
         if config.cxt_feat or config.psn_feat:
             if config.cxt_feat:
                 if config.conv_before_fusion_scenario:
-                    self.cxt_feat_extractor_scenario = nn.Sequential(
-                        nn.Conv2d(backbone.out_channels, 256, 3, 1, 1),
-                        nn.BatchNorm2d(256),
-                        nn.ReLU(inplace=True),
-                        nn.Conv2d(256, 256, 3, 1, 1),
-                        nn.BatchNorm2d(256),
-                        nn.ReLU(inplace=True),
-                        nn.Conv2d(256, config.cxt_feat_len, 3, 1, 1),
-                        nn.BatchNorm2d(config.cxt_feat_len),
-                        nn.ReLU(inplace=True),
-                        nn.AdaptiveMaxPool2d(1)
-                    )
+                    self.cxt_feat_extractor_scenario = ContextExtractorSceneConvs(1024)
                 else:
                     self.cxt_feat_extractor_scenario = nn.Sequential(
                         nn.AdaptiveMaxPool2d(1)
@@ -429,6 +420,8 @@ class SeqRoIHeads(RoIHeads):
             feat_res4_ori = box_features['feat_res4']
             if config.cxt_feat:
                 cxt_feat_scenario = self.cxt_feat_extractor_scenario(features['feat_res3']).squeeze(-1)
+                # print(0, features['feat_res3'].shape)
+                # print(1, cxt_feat_scenario.shape)
                 cxt_feat_scenario_proposalNum = torch.cat([
                     cxt_feat_scenario[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
                     ], dim=0)

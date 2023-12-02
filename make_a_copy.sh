@@ -1,7 +1,7 @@
-dst='GLCNet_codes'
+dst=$1
 
 mkdir ../${dst}
-cp -r configs datasets demo_imgs models utils \
+cp -r configs datasets demo_imgs losses models utils \
     *.py *.sh *.txt *.md \
     .flake8 .gitignore .git LICENSE \
     ../${dst}

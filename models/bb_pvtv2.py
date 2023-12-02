@@ -154,7 +154,11 @@ class OverlapPatchEmbed(nn.Module):
 
     def __init__(self, img_size=224, patch_size=7, stride=4, in_chans=3, embed_dim=768):
         super().__init__()
-        img_size = to_2tuple(img_size)
+        # img_size = to_2tuple(img_size)
+        if isinstance(img_size, int):
+            img_size = (img_size, img_size)
+        elif isinstance(img_size, tuple):
+            pass
         patch_size = to_2tuple(patch_size)
 
         self.img_size = img_size
@@ -185,6 +189,7 @@ class OverlapPatchEmbed(nn.Module):
     def forward(self, x):
         x = self.proj(x)
         _, _, H, W = x.shape
+        # print(-1, H, W)
         x = x.flatten(2).transpose(1, 2)
         x = self.norm(x)
 
