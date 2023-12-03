@@ -23,7 +23,7 @@ class Config():
 
         # Context Features
         self.cxt_feat = True
-        self.psn_feat = True
+        self.psn_feat = False
         self.psn_feat_labelledOnly = False
 
         self.nae_mix_res3 = True
