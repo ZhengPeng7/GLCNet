@@ -135,7 +135,7 @@ _C.EVAL_USE_CBGM = False
 # Save a checkpoint after every this number of epochs
 _C.CKPT_PERIOD = 1
 # The period (in terms of iterations) to display training losses
-_C.DISP_PERIOD = 10
+_C.DISP_PERIOD = 200
 # Whether to use tensorboard for visualization
 _C.TF_BOARD = True
 # The device loading the model

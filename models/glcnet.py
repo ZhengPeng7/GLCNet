@@ -20,15 +20,15 @@ from models.resnet import build_resnet50
 from models.pvt import build_pvt
 from models.convnextv2 import build_cnx
 
-from models.cxt_ext import ContextExtractorSceneConvs, ContextExtractorSceneConvs2
+from models.cxt_ext import ContextExtractorSceneConvs1, ContextExtractorSceneConvs2, ContextExtractorGroupConvs1, ContextExtractorGroupConvs2
 
 
 config = Config()
 
 
-class SeqNet(nn.Module):
+class GLCNet(nn.Module):
     def __init__(self, cfg):
-        super(SeqNet, self).__init__()
+        super(GLCNet, self).__init__()
 
         if config.bb == 'resnet50':
             backbone, box_head = build_resnet50(pretrained=True)
@@ -77,26 +77,19 @@ class SeqNet(nn.Module):
         fusion_layers_conv = []
         if config.cxt_feat or config.psn_feat:
             if config.cxt_feat:
-                if config.conv_before_fusion_scenario:
-                    self.cxt_feat_extractor_scenario = ContextExtractorSceneConvs(1024)
+                if config.cxt_ext_scene == 1:
+                    self.cxt_feat_extractor_scene = ContextExtractorSceneConvs1(config.cxt_feat_len)
+                elif config.cxt_ext_scene == 2:
+                    self.cxt_feat_extractor_scene = ContextExtractorSceneConvs2(config.cxt_feat_len)
                 else:
-                    self.cxt_feat_extractor_scenario = nn.Sequential(
+                    self.cxt_feat_extractor_scene = nn.Sequential(
                         nn.AdaptiveMaxPool2d(1)
                     )
             if config.psn_feat:
-                if config.conv_before_fusion_psn:
-                    self.cxt_feat_extractor_psn = nn.Sequential(
-                        nn.Conv2d(2048, 256, 1, 1, 0),
-                        nn.BatchNorm2d(256),
-                        nn.ReLU(inplace=True),
-                        nn.Conv2d(256, 256, 1, 1, 0),
-                        nn.BatchNorm2d(256),
-                        nn.ReLU(inplace=True),
-                        nn.Conv2d(256, config.psn_feat_len, 3, 1, 1),
-                        nn.BatchNorm2d(config.psn_feat_len),
-                        nn.ReLU(inplace=True),
-                        nn.AdaptiveMaxPool2d(1)
-                    )
+                if config.cxt_ext_group == 1:
+                    self.cxt_feat_extractor_psn = ContextExtractorGroupConvs1(config.psn_feat_len)
+                elif config.cxt_ext_group == 2:
+                    self.cxt_feat_extractor_psn = ContextExtractorGroupConvs2(config.psn_feat_len)
                 else:
                     self.cxt_feat_extractor_psn = nn.Sequential(
                         nn.AdaptiveMaxPool2d(1)
@@ -132,7 +125,7 @@ class SeqNet(nn.Module):
             num_cq_size=cfg.MODEL.LOSS.CQ_SIZE,
             oim_momentum=cfg.MODEL.LOSS.OIM_MOMENTUM,
             oim_scalar=cfg.MODEL.LOSS.OIM_SCALAR,
-            # SeqNet
+            # GLCNet
             faster_rcnn_predictor=faster_rcnn_predictor,
             reid_head=reid_head,
             # parent class
@@ -147,7 +140,7 @@ class SeqNet(nn.Module):
             score_thresh=cfg.MODEL.ROI_HEAD.SCORE_THRESH_TEST,
             nms_thresh=cfg.MODEL.ROI_HEAD.NMS_THRESH_TEST,
             detections_per_img=cfg.MODEL.ROI_HEAD.DETECTIONS_PER_IMAGE_TEST,
-            cxt_feat_extractor_scenario=self.cxt_feat_extractor_scenario if config.cxt_feat else None,
+            cxt_feat_extractor_scene=self.cxt_feat_extractor_scene if config.cxt_feat else None,
             cxt_feat_extractor_psn=self.cxt_feat_extractor_psn if config.psn_feat else None,
             fuser=self.fuser if config.use_fusion else [[], [], []],
         )
@@ -194,14 +187,14 @@ class SeqNet(nn.Module):
             if config.cxt_feat or config.psn_feat:
                 feat_res4_ori = box_features['feat_res4']
                 if config.cxt_feat:
-                    cxt_feat_scenario = self.cxt_feat_extractor_scenario(features['feat_res3']).squeeze(-1)
-                    cxt_feat_scenario_proposalNum = torch.cat([
-                        cxt_feat_scenario[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
+                    cxt_feat_scene = self.cxt_feat_extractor_scene(features['feat_res3']).squeeze(-1)
+                    cxt_feat_scene_proposalNum = torch.cat([
+                        cxt_feat_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
                         ], dim=0)
                     if config.nae_multi:
-                        box_features['cxt_scenario'] = cxt_feat_scenario_proposalNum.unsqueeze(-1)
+                        box_features['cxt_scene'] = cxt_feat_scene_proposalNum.unsqueeze(-1)
                     else:
-                        box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_feat_scenario_proposalNum.unsqueeze(-1)], 1)
+                        box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_feat_scene_proposalNum.unsqueeze(-1)], 1)
                 if config.psn_feat:
                     feat_res4_per_image = []
                     num_box = 0
@@ -277,7 +270,7 @@ class SeqRoIHeads(RoIHeads):
         oim_scalar,
         faster_rcnn_predictor,
         reid_head,
-        cxt_feat_extractor_scenario,
+        cxt_feat_extractor_scene,
         cxt_feat_extractor_psn,
         fuser,
         *args,
@@ -295,7 +288,7 @@ class SeqRoIHeads(RoIHeads):
             featmap_names = ['feat_res3', 'feat_res4']
             in_channels=[reid_head.out_channels[0], reid_head.out_channels[1]]
             if config.cxt_feat:
-                featmap_names.append('cxt_scenario')
+                featmap_names.append('cxt_scene')
                 in_channels.append(config.cxt_feat_len)
             if config.psn_feat:
                 featmap_names.append('cxt_psn')
@@ -309,7 +302,7 @@ class SeqRoIHeads(RoIHeads):
         self.reid_head = reid_head
         # rename the method inherited from parent class
         self.postprocess_proposals = self.postprocess_detections
-        self.cxt_feat_extractor_scenario = cxt_feat_extractor_scenario
+        self.cxt_feat_extractor_scene = cxt_feat_extractor_scene
         self.cxt_feat_extractor_psn = cxt_feat_extractor_psn
         self.fuser_att, self.fuser_mlp, self.fuser_conv = fuser
 
@@ -367,14 +360,14 @@ class SeqRoIHeads(RoIHeads):
             gt_box_features = self.reid_head(gt_box_features)
             feat_res4_ori = gt_box_features['feat_res4']
             if config.cxt_feat:
-                cxt_feat_scenario = self.cxt_feat_extractor_scenario(features['feat_res3']).squeeze(-1)
-                cxt_feat_scenario_proposalNum = torch.cat([
-                    cxt_feat_scenario[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(gt_box)
+                cxt_feat_scene = self.cxt_feat_extractor_scene(features['feat_res3']).squeeze(-1)
+                cxt_feat_scene_proposalNum = torch.cat([
+                    cxt_feat_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(gt_box)
                     ], dim=0)
                 if config.nae_multi:
-                    gt_box_features['cxt_scenario'] = cxt_feat_scenario_proposalNum.unsqueeze(-1)
+                    gt_box_features['cxt_scene'] = cxt_feat_scene_proposalNum.unsqueeze(-1)
                 else:
-                    gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], cxt_feat_scenario_proposalNum.unsqueeze(-1)], 1)
+                    gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], cxt_feat_scene_proposalNum.unsqueeze(-1)], 1)
             if config.psn_feat:
                 feat_res4_per_image = []
                 num_box = 0
@@ -419,16 +412,16 @@ class SeqRoIHeads(RoIHeads):
         if config.cxt_feat or config.psn_feat:
             feat_res4_ori = box_features['feat_res4']
             if config.cxt_feat:
-                cxt_feat_scenario = self.cxt_feat_extractor_scenario(features['feat_res3']).squeeze(-1)
+                cxt_feat_scene = self.cxt_feat_extractor_scene(features['feat_res3']).squeeze(-1)
                 # print(0, features['feat_res3'].shape)
-                # print(1, cxt_feat_scenario.shape)
-                cxt_feat_scenario_proposalNum = torch.cat([
-                    cxt_feat_scenario[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
+                # print(1, cxt_feat_scene.shape)
+                cxt_feat_scene_proposalNum = torch.cat([
+                    cxt_feat_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
                     ], dim=0)
                 if config.nae_multi:
-                    box_features['cxt_scenario'] = cxt_feat_scenario_proposalNum.unsqueeze(-1)
+                    box_features['cxt_scene'] = cxt_feat_scene_proposalNum.unsqueeze(-1)
                 else:
-                    box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_feat_scenario_proposalNum.unsqueeze(-1)], 1)
+                    box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_feat_scene_proposalNum.unsqueeze(-1)], 1)
             if config.psn_feat:
                 feat_res4_per_image = []
                 num_box = 0

@@ -8,7 +8,7 @@ from PIL import Image
 from torchvision.transforms import functional as F
 
 from defaults import get_default_cfg
-from models.seqnet import SeqNet
+from models.glcnet import GLCNet
 from utils.utils import resume_from_ckpt
 
 
@@ -50,7 +50,7 @@ def main(args):
     device = torch.device(cfg.DEVICE)
 
     print("Creating model")
-    model = SeqNet(cfg)
+    model = GLCNet(cfg)
     model.to(device)
     model.eval()
 

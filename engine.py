@@ -91,7 +91,8 @@ def evaluate_performance(
     else:
         gallery_dets, gallery_feats = [], []
         print('Extracting gallery ...')
-        for images, targets in tqdm(gallery_loader, ncols=0):
+        # for images, targets in tqdm(gallery_loader, ncols=0):
+        for images, targets in gallery_loader:
             images, targets = to_device(images, targets, device)
             if not use_gt:
                 outputs = model(images)
@@ -127,7 +128,8 @@ def evaluate_performance(
         # i.e. query person + surrounding people (context information)
         query_dets, query_feats = [], []
         print('Extracting query context ...')
-        for images, targets in tqdm(query_loader, ncols=0):
+        # for images, targets in tqdm(query_loader, ncols=0):
+        for images, targets in query_loader:
             images, targets = to_device(images, targets, device)
             # targets will be modified in the model, so deepcopy it
             outputs = model(images, deepcopy(targets), query_img_as_gallery=True)
@@ -146,7 +148,8 @@ def evaluate_performance(
         # extract the features of query boxes
         query_box_feats = []
         print('Extracting query ...')
-        for images, targets in tqdm(query_loader, ncols=0):
+        # for images, targets in tqdm(query_loader, ncols=0):
+        for images, targets in query_loader:
             images, targets = to_device(images, targets, device)
             embeddings = model(images, targets)
             assert len(embeddings) == 1, "batch size in test phase should be 1"

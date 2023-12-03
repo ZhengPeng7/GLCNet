@@ -7,6 +7,8 @@ cfg = get_default_cfg()
 
 class Config():
     def __init__(self) -> None:
+        self.cxt_ext_scene = [0, 1, 2, 3][1]
+        self.cxt_ext_group = [0, 1, 2, 3][1]
         self.lr = 0.003 * math.sqrt(cfg.INPUT.BATCH_SIZE_TRAIN / 5)  # adapt the lr linearly
         self.bb = ['resnet50', 'pvtv2', 'convnextv2'][0]
         self.pvt_weights = ['/root/autodl-tmp/weights/pvt_v2_b2.pth', ''][0]
@@ -21,7 +23,7 @@ class Config():
 
         # Context Features
         self.cxt_feat = True
-        self.psn_feat = False
+        self.psn_feat = True
         self.psn_feat_labelledOnly = False
 
         self.nae_mix_res3 = True
@@ -49,8 +51,6 @@ class Config():
         self.bnRelu_after_conv = False
         self.use_fusion = sum(self.fusion_style.values()) and not self.nae_multi
         self.fusion_attention = [0, 'sea'][0] if self.cxt_feat or self.psn_feat else 0
-        self.conv_before_fusion_scenario = True
-        self.conv_before_fusion_psn = True
 
         self.cxt_feat_len = 1024 * int(self.cxt_feat)
         self.psn_feat_len = 2048 * int(self.psn_feat)
