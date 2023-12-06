@@ -4,7 +4,7 @@ INPUT:
   DATA_ROOT: "/root/autodl-tmp/datasets/ps/prw"
   BATCH_SIZE_TRAIN: 3
 SOLVER:
-  MAX_EPOCHS: 16
+  MAX_EPOCHS: 15
   LR_DECAY_MILESTONES: [10]
 MODEL:
   LOSS:

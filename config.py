@@ -7,8 +7,8 @@ cfg = get_default_cfg()
 
 class Config():
     def __init__(self) -> None:
-        self.cxt_ext_scene = [0, 1, 2, 3][1]
-        self.cxt_ext_group = [0, 1, 2, 3][1]
+        self.cxt_ext_scene = [0, 1, 2, 3, 4][4]
+        self.cxt_ext_group = [0, 1, 2, 3, 4][1]
         self.lr = 0.003 * math.sqrt(cfg.INPUT.BATCH_SIZE_TRAIN / 5)  # adapt the lr linearly
         self.bb = ['resnet50', 'pvtv2', 'convnextv2'][0]
         self.pvt_weights = ['/root/autodl-tmp/weights/pvt_v2_b2.pth', ''][0]

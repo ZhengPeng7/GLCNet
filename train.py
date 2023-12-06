@@ -87,7 +87,7 @@ def main(args):
 
     print("Start training")
     start_time = time.time()
-    mAPs = []
+    mAPs = [-1]
     for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS+1):
         train_one_epoch(cfg, model, optimizer, train_loader, device, epoch, tfboard)
         lr_scheduler.step()

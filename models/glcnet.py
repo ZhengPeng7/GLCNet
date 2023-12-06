@@ -20,7 +20,7 @@ from models.resnet import build_resnet50
 from models.pvt import build_pvt
 from models.convnextv2 import build_cnx
 
-from models.cxt_ext import ContextExtractorSceneConvs1, ContextExtractorSceneConvs2, ContextExtractorGroupConvs1, ContextExtractorGroupConvs2
+from models.cxt_ext import ContextExtractor1, ContextExtractor2, ContextExtractor3, ContextExtractor4
 
 
 config = Config()
@@ -78,18 +78,26 @@ class GLCNet(nn.Module):
         if config.cxt_feat or config.psn_feat:
             if config.cxt_feat:
                 if config.cxt_ext_scene == 1:
-                    self.cxt_feat_extractor_scene = ContextExtractorSceneConvs1(config.cxt_feat_len)
+                    self.cxt_feat_extractor_scene = ContextExtractor1(config.cxt_feat_len)
                 elif config.cxt_ext_scene == 2:
-                    self.cxt_feat_extractor_scene = ContextExtractorSceneConvs2(config.cxt_feat_len)
+                    self.cxt_feat_extractor_scene = ContextExtractor2(config.cxt_feat_len)
+                elif config.cxt_ext_scene == 3:
+                    self.cxt_feat_extractor_scene = ContextExtractor3(config.cxt_feat_len)
+                elif config.cxt_ext_scene == 4:
+                    self.cxt_feat_extractor_scene = ContextExtractor4(config.cxt_feat_len)
                 else:
                     self.cxt_feat_extractor_scene = nn.Sequential(
                         nn.AdaptiveMaxPool2d(1)
                     )
             if config.psn_feat:
                 if config.cxt_ext_group == 1:
-                    self.cxt_feat_extractor_psn = ContextExtractorGroupConvs1(config.psn_feat_len)
+                    self.cxt_feat_extractor_psn = ContextExtractor1(config.psn_feat_len)
                 elif config.cxt_ext_group == 2:
-                    self.cxt_feat_extractor_psn = ContextExtractorGroupConvs2(config.psn_feat_len)
+                    self.cxt_feat_extractor_psn = ContextExtractor2(config.psn_feat_len)
+                elif config.cxt_ext_group == 3:
+                    self.cxt_feat_extractor_psn = ContextExtractor3(config.psn_feat_len)
+                elif config.cxt_ext_group == 4:
+                    self.cxt_feat_extractor_psn = ContextExtractor4(config.psn_feat_len)
                 else:
                     self.cxt_feat_extractor_psn = nn.Sequential(
                         nn.AdaptiveMaxPool2d(1)
