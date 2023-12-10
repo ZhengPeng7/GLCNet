@@ -1,7 +1,7 @@
 OUTPUT_DIR: "./exp_mvn"
 INPUT:
   DATASET: "MVN"
-  DATA_ROOT: "/mnt/workspace/workgroup/mohe/datasets/ps/mvn_cuhk"
+  DATA_ROOT: "/root/autodl-tmp/datasets/ps/mvn_cuhk"
   BATCH_SIZE_TRAIN: 32
   MIN_SIZE: 240
   MAX_SIZE: 720

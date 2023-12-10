@@ -1,4 +1,4 @@
-sleep ${2:-0}m
+sleep ${2:-0}h
 
 # cuhk / prw / mvn
 dataset="prw"

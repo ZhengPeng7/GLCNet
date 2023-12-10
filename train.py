@@ -96,7 +96,7 @@ def main(args):
             eval_epoch = 5
         else:
             eval_epoch = cfg.EVAL_PERIOD
-        if epoch >= cfg.SOLVER.MAX_EPOCHS or (epoch % eval_epoch == 0 and epoch > 10):
+        if epoch >= cfg.SOLVER.MAX_EPOCHS or (epoch % eval_epoch == 0 and epoch > cfg.SOLVER.LR_DECAY_MILESTONES[0]):
             mAP = evaluate_performance(
                 model,
                 gallery_loader,
