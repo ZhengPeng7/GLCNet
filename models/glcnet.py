@@ -75,33 +75,34 @@ class GLCNet(nn.Module):
         fusion_layers_att = []
         fusion_layers_mlp = []
         fusion_layers_conv = []
-        if config.cxt_feat or config.psn_feat:
-            if config.cxt_feat:
+        if config.cxt_scene_enabled or config.cxt_group_enabled:
+            if config.cxt_scene_enabled:
                 if config.cxt_ext_scene == 1:
-                    self.cxt_feat_extractor_scene = ContextExtractor1(config.cxt_feat_len)
+                    self.cxt_scene_extractor = ContextExtractor1(config.cxt_scene_len)
                 elif config.cxt_ext_scene == 2:
-                    self.cxt_feat_extractor_scene = ContextExtractor2(config.cxt_feat_len)
+                    self.cxt_scene_extractor = ContextExtractor2(config.cxt_scene_len)
                 elif config.cxt_ext_scene == 3:
-                    self.cxt_feat_extractor_scene = ContextExtractor3(config.cxt_feat_len)
+                    self.cxt_scene_extractor = ContextExtractor3(config.cxt_scene_len)
                 elif config.cxt_ext_scene == 4:
-                    self.cxt_feat_extractor_scene = ContextExtractor4(config.cxt_feat_len)
+                    self.cxt_scene_extractor = ContextExtractor4(config.cxt_scene_len)
                 else:
-                    self.cxt_feat_extractor_scene = nn.Sequential(
+                    self.cxt_scene_extractor = nn.Sequential(
                         nn.AdaptiveMaxPool2d(1)
                     )
-            if config.psn_feat:
+            if config.cxt_group_enabled:
                 if config.cxt_ext_group == 1:
-                    self.cxt_feat_extractor_psn = ContextExtractor1(config.psn_feat_len)
+                    self.cxt_group_extractor = ContextExtractor1(config.cxt_group_len)
                 elif config.cxt_ext_group == 2:
-                    self.cxt_feat_extractor_psn = ContextExtractor2(config.psn_feat_len)
+                    self.cxt_group_extractor = ContextExtractor2(config.cxt_group_len)
                 elif config.cxt_ext_group == 3:
-                    self.cxt_feat_extractor_psn = ContextExtractor3(config.psn_feat_len)
+                    self.cxt_group_extractor = ContextExtractor3(config.cxt_group_len)
                 elif config.cxt_ext_group == 4:
-                    self.cxt_feat_extractor_psn = ContextExtractor4(config.psn_feat_len)
+                    self.cxt_group_extractor = ContextExtractor4(config.cxt_group_len)
                 else:
-                    self.cxt_feat_extractor_psn = nn.Sequential(
+                    self.cxt_group_extractor = nn.Sequential(
                         nn.AdaptiveMaxPool2d(1)
                     )
+
             if config.use_fusion:
                 if config.fusion_attention == 'sea':
                     fusion_layers_att.append(
@@ -148,8 +149,8 @@ class GLCNet(nn.Module):
             score_thresh=cfg.MODEL.ROI_HEAD.SCORE_THRESH_TEST,
             nms_thresh=cfg.MODEL.ROI_HEAD.NMS_THRESH_TEST,
             detections_per_img=cfg.MODEL.ROI_HEAD.DETECTIONS_PER_IMAGE_TEST,
-            cxt_feat_extractor_scene=self.cxt_feat_extractor_scene if config.cxt_feat else None,
-            cxt_feat_extractor_psn=self.cxt_feat_extractor_psn if config.psn_feat else None,
+            cxt_scene_extractor=self.cxt_scene_extractor if config.cxt_scene_enabled else None,
+            cxt_group_extractor=self.cxt_group_extractor if config.cxt_group_enabled else None,
             fuser=self.fuser if config.use_fusion else [[], [], []],
         )
 
@@ -192,35 +193,35 @@ class GLCNet(nn.Module):
             boxes = [t["boxes"] for t in targets]
             box_features = self.roi_heads.box_roi_pool(features, boxes, images.image_sizes)
             box_features = self.roi_heads.reid_head(box_features)
-            if config.cxt_feat or config.psn_feat:
+            if config.cxt_scene_enabled or config.cxt_group_enabled:
                 feat_res4_ori = box_features['feat_res4']
-                if config.cxt_feat:
-                    cxt_feat_scene = self.cxt_feat_extractor_scene(features['feat_res3']).squeeze(-1)
-                    cxt_feat_scene_proposalNum = torch.cat([
-                        cxt_feat_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
+                if config.cxt_scene_enabled:
+                    cxt_scene = self.cxt_scene_extractor(features['feat_res3']).squeeze(-1)
+                    cxt_scene_proposalNum = torch.cat([
+                        cxt_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
                         ], dim=0)
                     if config.nae_multi:
-                        box_features['cxt_scene'] = cxt_feat_scene_proposalNum.unsqueeze(-1)
+                        box_features['cxt_scene'] = cxt_scene_proposalNum.unsqueeze(-1)
                     else:
-                        box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_feat_scene_proposalNum.unsqueeze(-1)], 1)
-                if config.psn_feat:
+                        box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_scene_proposalNum.unsqueeze(-1)], 1)
+                if config.cxt_group_enabled:
                     feat_res4_per_image = []
                     num_box = 0
                     for box in boxes:
                         feat_res4_per_image.append(feat_res4_ori[num_box:num_box+box.shape[0]])
                         num_box += box.shape[0]
-                    cxt_feat_psn_per_image = []
+                    cxt_group_per_image = []
                     for feat_res4 in feat_res4_per_image:
-                        cxt_feat_psn_per_image.append(torch.mean(feat_res4 * 1, dim=0).unsqueeze(0))
-                    cxt_feat_psn_per_image = torch.cat(cxt_feat_psn_per_image, dim=0)
-                    cxt_feat_psn_per_image = self.cxt_feat_extractor_psn(cxt_feat_psn_per_image)
-                    cxt_feat_psn_proposalNum = torch.cat([
-                        cxt_feat_psn_per_image[idx_bs].repeat(box.shape[0], 1, 1, 1) for idx_bs, box in enumerate(boxes)
+                        cxt_group_per_image.append(torch.mean(feat_res4 * 1, dim=0).unsqueeze(0))
+                    cxt_group_per_image = torch.cat(cxt_group_per_image, dim=0)
+                    cxt_group_per_image = self.cxt_group_extractor(cxt_group_per_image)
+                    cxt_group_proposalNum = torch.cat([
+                        cxt_group_per_image[idx_bs].repeat(box.shape[0], 1, 1, 1) for idx_bs, box in enumerate(boxes)
                         ], dim=0)
                     if config.nae_multi:
-                        box_features['cxt_psn'] = cxt_feat_psn_proposalNum
+                        box_features['cxt_group'] = cxt_group_proposalNum
                     else:
-                        box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_feat_psn_proposalNum], 1)
+                        box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_group_proposalNum], 1)
                 if not config.nae_multi:
                     if self.fuser_att:
                         box_features["feat_res4"] = self.fuser_att(box_features["feat_res4"])
@@ -278,8 +279,8 @@ class SeqRoIHeads(RoIHeads):
         oim_scalar,
         faster_rcnn_predictor,
         reid_head,
-        cxt_feat_extractor_scene,
-        cxt_feat_extractor_psn,
+        cxt_scene_extractor,
+        cxt_group_extractor,
         fuser,
         *args,
         **kwargs
@@ -295,12 +296,12 @@ class SeqRoIHeads(RoIHeads):
         else:
             featmap_names = ['feat_res3', 'feat_res4']
             in_channels=[reid_head.out_channels[0], reid_head.out_channels[1]]
-            if config.cxt_feat:
+            if config.cxt_scene_enabled:
                 featmap_names.append('cxt_scene')
-                in_channels.append(config.cxt_feat_len)
-            if config.psn_feat:
-                featmap_names.append('cxt_psn')
-                in_channels.append(config.psn_feat_len)
+                in_channels.append(config.cxt_scene_len)
+            if config.cxt_group_enabled:
+                featmap_names.append('cxt_group')
+                in_channels.append(config.cxt_group_len)
         self.embedding_head = NormAwareEmbedding(
             featmap_names=featmap_names,
             in_channels=in_channels
@@ -310,8 +311,8 @@ class SeqRoIHeads(RoIHeads):
         self.reid_head = reid_head
         # rename the method inherited from parent class
         self.postprocess_proposals = self.postprocess_detections
-        self.cxt_feat_extractor_scene = cxt_feat_extractor_scene
-        self.cxt_feat_extractor_psn = cxt_feat_extractor_psn
+        self.cxt_scene_extractor = cxt_scene_extractor
+        self.cxt_group_extractor = cxt_group_extractor
         self.fuser_att, self.fuser_mlp, self.fuser_conv = fuser
 
     def forward(self, features, proposals, image_shapes, targets=None, query_img_as_gallery=False):
@@ -344,16 +345,16 @@ class SeqRoIHeads(RoIHeads):
                 proposal_cls_scores, proposal_regs, proposals, image_shapes
             )
         
-        if config.psn_feat:
+        if config.cxt_group_enabled:
             if self.training:
-                psn_selections = []
+                group_selections = []
                 for box_pid_label in box_pid_labels:
-                    if config.psn_feat_labelledOnly:
-                        psn_selections.append((0 < box_pid_label < 5555).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1))
+                    if config.cxt_group_labelledOnly:
+                        group_selections.append((0 < box_pid_label < 5555).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1))
                     else:
-                        psn_selections.append((box_pid_label > 0).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1))
+                        group_selections.append((box_pid_label > 0).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1))
             else:
-                psn_selections = None
+                group_selections = None
 
         cws = True
         gt_det = None
@@ -367,33 +368,33 @@ class SeqRoIHeads(RoIHeads):
             gt_box_features = self.box_roi_pool(features, gt_box, image_shapes)
             gt_box_features = self.reid_head(gt_box_features)
             feat_res4_ori = gt_box_features['feat_res4']
-            if config.cxt_feat:
-                cxt_feat_scene = self.cxt_feat_extractor_scene(features['feat_res3']).squeeze(-1)
-                cxt_feat_scene_proposalNum = torch.cat([
-                    cxt_feat_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(gt_box)
+            if config.cxt_scene_enabled:
+                cxt_scene = self.cxt_scene_extractor(features['feat_res3']).squeeze(-1)
+                cxt_scene_proposalNum = torch.cat([
+                    cxt_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(gt_box)
                     ], dim=0)
                 if config.nae_multi:
-                    gt_box_features['cxt_scene'] = cxt_feat_scene_proposalNum.unsqueeze(-1)
+                    gt_box_features['cxt_scene'] = cxt_scene_proposalNum.unsqueeze(-1)
                 else:
-                    gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], cxt_feat_scene_proposalNum.unsqueeze(-1)], 1)
-            if config.psn_feat:
+                    gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], cxt_scene_proposalNum.unsqueeze(-1)], 1)
+            if config.cxt_group_enabled:
                 feat_res4_per_image = []
                 num_box = 0
                 for box in boxes:
                     feat_res4_per_image.append(feat_res4_ori[num_box:num_box+box.shape[0]])
                     num_box += box.shape[0]
-                cxt_feat_psn_per_image = []
+                cxt_group_per_image = []
                 for feat_res4 in feat_res4_per_image:
-                    cxt_feat_psn_per_image.append(torch.mean(feat_res4 * 1, dim=0).unsqueeze(0))
-                cxt_feat_psn_per_image = torch.cat(cxt_feat_psn_per_image, dim=0)
-                cxt_feat_psn_per_image = self.cxt_feat_extractor_psn(cxt_feat_psn_per_image)
-                cxt_feat_psn_proposalNum = torch.cat([
-                    cxt_feat_psn_per_image[idx_bs].repeat(box.shape[0], 1, 1, 1) for idx_bs, box in enumerate(gt_box)
+                    cxt_group_per_image.append(torch.mean(feat_res4 * 1, dim=0).unsqueeze(0))
+                cxt_group_per_image = torch.cat(cxt_group_per_image, dim=0)
+                cxt_group_per_image = self.cxt_group_extractor(cxt_group_per_image)
+                cxt_group_proposalNum = torch.cat([
+                    cxt_group_per_image[idx_bs].repeat(box.shape[0], 1, 1, 1) for idx_bs, box in enumerate(gt_box)
                     ], dim=0)
                 if config.nae_multi:
-                    gt_box_features['cxt_psn'] = cxt_feat_psn_proposalNum
+                    gt_box_features['cxt_group'] = cxt_group_proposalNum
                 else:
-                    gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], cxt_feat_psn_proposalNum], 1)
+                    gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], cxt_group_proposalNum], 1)
             if not config.nae_multi:
                 if self.fuser_att:
                     gt_box_features["feat_res4"] = self.fuser_att(gt_box_features["feat_res4"])
@@ -417,41 +418,41 @@ class SeqRoIHeads(RoIHeads):
         box_features = self.box_roi_pool(features, boxes, image_shapes)
         box_features = self.reid_head(box_features)
         box_regs = self.box_predictor(box_features["feat_res4"])
-        if config.cxt_feat or config.psn_feat:
+        if config.cxt_scene_enabled or config.cxt_group_enabled:
             feat_res4_ori = box_features['feat_res4']
-            if config.cxt_feat:
-                cxt_feat_scene = self.cxt_feat_extractor_scene(features['feat_res3']).squeeze(-1)
+            if config.cxt_scene_enabled:
+                cxt_scene = self.cxt_scene_extractor(features['feat_res3']).squeeze(-1)
                 # print(0, features['feat_res3'].shape)
-                # print(1, cxt_feat_scene.shape)
-                cxt_feat_scene_proposalNum = torch.cat([
-                    cxt_feat_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
+                # print(1, cxt_scene.shape)
+                cxt_scene_proposalNum = torch.cat([
+                    cxt_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
                     ], dim=0)
                 if config.nae_multi:
-                    box_features['cxt_scene'] = cxt_feat_scene_proposalNum.unsqueeze(-1)
+                    box_features['cxt_scene'] = cxt_scene_proposalNum.unsqueeze(-1)
                 else:
-                    box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_feat_scene_proposalNum.unsqueeze(-1)], 1)
-            if config.psn_feat:
+                    box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_scene_proposalNum.unsqueeze(-1)], 1)
+            if config.cxt_group_enabled:
                 feat_res4_per_image = []
                 num_box = 0
                 for box in boxes:
                     feat_res4_per_image.append(feat_res4_ori[num_box:num_box+box.shape[0]])
                     num_box += box.shape[0]
-                cxt_feat_psn_per_image = []
-                if psn_selections:
-                    for feat_res4, psn_selection in zip(feat_res4_per_image, psn_selections):
-                        cxt_feat_psn_per_image.append(torch.sum(feat_res4 * psn_selection, dim=0).unsqueeze(0) / (torch.sum(psn_selection) + 1e-5))
+                cxt_group_per_image = []
+                if group_selections:
+                    for feat_res4, group_selection in zip(feat_res4_per_image, group_selections):
+                        cxt_group_per_image.append(torch.sum(feat_res4 * group_selection, dim=0).unsqueeze(0) / (torch.sum(group_selection) + 1e-5))
                 else:
                     for feat_res4 in feat_res4_per_image:
-                        cxt_feat_psn_per_image.append(torch.mean(feat_res4 * 1, dim=0).unsqueeze(0))
-                    cxt_feat_psn_per_image = torch.cat(cxt_feat_psn_per_image, dim=0)
-                    cxt_feat_psn_per_image = self.cxt_feat_extractor_psn(cxt_feat_psn_per_image)
-                cxt_feat_psn_proposalNum = torch.cat([
-                    cxt_feat_psn_per_image[idx_bs].repeat(box.shape[0], 1, 1, 1) for idx_bs, box in enumerate(boxes)
+                        cxt_group_per_image.append(torch.mean(feat_res4 * 1, dim=0).unsqueeze(0))
+                    cxt_group_per_image = torch.cat(cxt_group_per_image, dim=0)
+                    cxt_group_per_image = self.cxt_group_extractor(cxt_group_per_image)
+                cxt_group_proposalNum = torch.cat([
+                    cxt_group_per_image[idx_bs].repeat(box.shape[0], 1, 1, 1) for idx_bs, box in enumerate(boxes)
                     ], dim=0)
                 if config.nae_multi:
-                    box_features['cxt_psn'] = cxt_feat_psn_proposalNum
+                    box_features['cxt_group'] = cxt_group_proposalNum
                 else:
-                    box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_feat_psn_proposalNum], 1)
+                    box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_group_proposalNum], 1)
             if not config.nae_multi:
                 if self.fuser_att:
                     box_features["feat_res4"] = self.fuser_att(box_features["feat_res4"])
