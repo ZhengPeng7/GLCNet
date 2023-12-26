@@ -2,10 +2,10 @@ OUTPUT_DIR: "./exp_cuhk"
 INPUT:
   DATASET: "CUHK-SYSU"
   DATA_ROOT: "/root/autodl-tmp/datasets/ps/cuhk_sysu"
-  BATCH_SIZE_TRAIN: 3
+  BATCH_SIZE_TRAIN: 5
 SOLVER:
   MAX_EPOCHS: 25
-  LR_DECAY_MILESTONES: [12]
+  LR_DECAY_MILESTONES: [15]
 MODEL:
   LOSS:
     LUT_SIZE: 5532

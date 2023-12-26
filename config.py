@@ -23,7 +23,7 @@ class Config():
 
         # Context Features
         self.cxt_scene_enabled = True
-        self.cxt_group_enabled = True
+        self.cxt_group_enabled = False
         self.cxt_group_labelledOnly = False
 
         self.nae_mix_res3 = True
