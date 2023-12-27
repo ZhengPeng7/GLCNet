@@ -242,7 +242,7 @@ class GLCNet(nn.Module):
             )
             return detections
 
-    def forward(self, images, targets=None, query_img_as_gallery=False):
+    def forward(self, images, targets=None, query_img_as_gallery=False, ignore_detection_loss=True):
         if not self.training:
             return self.inference(images, targets, query_img_as_gallery)
 
@@ -267,6 +267,8 @@ class GLCNet(nn.Module):
         losses["loss_box_reg"] *= self.lw_box_reg
         losses["loss_box_cls"] *= self.lw_box_cls
         losses["loss_box_reid"] *= self.lw_box_reid
+        if ignore_detection_loss:
+            losses = {"loss_box_reid": losses["loss_box_reid"]}
         return losses
 
 

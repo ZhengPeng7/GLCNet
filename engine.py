@@ -9,8 +9,10 @@ from tqdm import tqdm
 from eval_func import eval_detection, eval_search_cuhk, eval_search_prw, eval_search_mvn
 from utils.utils import MetricLogger, SmoothedValue, mkdir, reduce_dict, warmup_lr_scheduler
 
-from config import ConfigMVN
+from config import ConfigMVN, Config
 
+
+config = Config()
 
 def to_device(images, targets, device):
     images = [image.to(device) for image in images]
@@ -38,7 +40,10 @@ def train_one_epoch(cfg, model, optimizer, data_loader, device, epoch, tfboard=N
     ):
         images, targets = to_device(images, targets, device)
 
-        loss_dict = model(images, targets)
+        loss_dict = model(
+            images, targets,
+            ignore_detection_loss=config.ignore_det_last_epochs and epoch>cfg.SOLVER.MAX_EPOCHS-cfg.SOLVER.LR_DECAY_MILESTONES[0]-3
+        )
         losses = sum(loss for loss in loss_dict.values())
 
         # reduce losses over all GPUs for logging purposes

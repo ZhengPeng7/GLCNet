@@ -7,6 +7,7 @@ cfg = get_default_cfg()
 
 class Config():
     def __init__(self) -> None:
+        self.ignore_det_last_epochs = True
         self.cxt_ext_scene = [0, 1, 2, 3, 4][2]     # [2] is the best one.
         self.cxt_ext_group = [0, 1, 2, 3, 4][2]     # [2] is the best one.
         self.lr = 0.003 * math.sqrt(cfg.INPUT.BATCH_SIZE_TRAIN / 5)  # adapt the lr linearly
