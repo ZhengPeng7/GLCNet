@@ -40,11 +40,10 @@ def train_one_epoch(cfg, model, optimizer, data_loader, device, epoch, tfboard=N
     ):
         images, targets = to_device(images, targets, device)
 
-        loss_dict = model(
-            images, targets,
-            ignore_detection_loss=config.ignore_det_last_epochs and epoch>cfg.SOLVER.MAX_EPOCHS-cfg.SOLVER.LR_DECAY_MILESTONES[0]-3
-        )
-        losses = sum(loss for loss in loss_dict.values())
+        loss_dict = model(images, targets)
+        if config.ignore_det_last_epochs and epoch > (cfg.SOLVER.LR_DECAY_MILESTONES[0] + 2):
+            losses = sum(loss_value for loss_name, loss_value in loss_dict.items() if loss_name == 'loss_box_reid')
+        losses = sum(loss_value for _, loss_value in loss_dict.items())
 
         # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = reduce_dict(loss_dict)
