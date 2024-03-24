@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 import torch.nn.functional as F
-from torchvision.models import resnet50
+from torchvision.models import resnet
 from torch import nn
 from config import Config
 
@@ -46,7 +46,8 @@ class Res4Head(nn.Sequential):
 
 
 def build_resnet50(pretrained=True):
-    bb_model = resnet50(pretrained=pretrained if pretrained else None)
+    resnet.model_urls["resnet50"] = "https://download.pytorch.org/models/resnet50-f46c3f97.pth"
+    bb_model = resnet.resnet50(pretrained=pretrained if pretrained else None)
 
     # freeze layers
     bb_model.conv1.weight.requires_grad_(False)

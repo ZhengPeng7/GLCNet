@@ -10,7 +10,7 @@ class Config():
         self.ignore_det_last_epochs = False
         self.cxt_ext_scene = [0, 1, 2, 3, 4][2]     # [2] is the best one.
         self.cxt_ext_group = [0, 1, 2, 3, 4][2]     # [2] is the best one.
-        self.lr = 0.003 * math.sqrt(cfg.INPUT.BATCH_SIZE_TRAIN / 5)  # adapt the lr linearly
+        self.lr = 0.003 * math.sqrt(cfg.INPUT.BATCH_SIZE_TRAIN / 3)  # adapt the lr linearly
         self.bb = ['resnet50', 'pvtv2', 'convnextv2'][0]
         self.pvt_weights = ['/root/autodl-tmp/weights/pvt_v2_b2.pth', ''][0]
         self.cnx_weights = ['/root/autodl-tmp/weights/convnextv2_base_1k_224_ema.pt', ''][0]
@@ -24,7 +24,7 @@ class Config():
 
         # Context Features
         self.cxt_scene_enabled = True
-        self.cxt_group_enabled = True
+        self.cxt_group_enabled = False
         self.cxt_group_labelledOnly = False
 
         self.nae_mix_res3 = True

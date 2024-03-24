@@ -7,7 +7,7 @@ _C = CN()
 # -------------------------------------------------------- #
 _C.INPUT = CN()
 _C.INPUT.DATASET = "CUHK-SYSU"
-_C.INPUT.DATA_ROOT = "data/CUHK-SYSU"
+_C.INPUT.DATA_ROOT = "/root/autodl-tmp/datasets/ps/cuhk_sysu"
 
 # Size of the smallest side of the image
 _C.INPUT.MIN_SIZE = 900
@@ -19,27 +19,28 @@ _C.INPUT.MAX_SIZE = 1500
 # _C.INPUT.ASPECT_RATIO_GROUPING_TRAIN = False
 
 # Number of images per batch
-_C.INPUT.BATCH_SIZE_TRAIN = 8
+_C.INPUT.BATCH_SIZE_TRAIN = 3
 _C.INPUT.BATCH_SIZE_TEST = 1
 
 # Number of data loading threads
-_C.INPUT.NUM_WORKERS_TRAIN = 8
+_C.INPUT.NUM_WORKERS_TRAIN = 3
 _C.INPUT.NUM_WORKERS_TEST = 1
 
 # -------------------------------------------------------- #
 #                          Solver                          #
 # -------------------------------------------------------- #
 _C.SOLVER = CN()
-_C.SOLVER.MAX_EPOCHS = 20
+_C.SOLVER.MAX_EPOCHS = 12
 
 # Learning rate settings
+# See `config.py`.
 
 # TODO: add config option WARMUP_EPOCHS
 _C.SOLVER.WARMUP_FACTOR = 1.0 / 1000
 # _C.SOLVER.WARMUP_EPOCHS = 1
 
 # The epoch milestones to decrease the learning rate by GAMMA
-_C.SOLVER.LR_DECAY_MILESTONES = [16]
+_C.SOLVER.LR_DECAY_MILESTONES = [8]
 _C.SOLVER.GAMMA = 0.1
 
 _C.SOLVER.WEIGHT_DECAY = 0.0005
