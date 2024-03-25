@@ -1,7 +1,7 @@
 # Customed
 data/
 exp_*
-*.out
+*.out*
 vis/
 
 # Byte-compiled / optimized / DLL files

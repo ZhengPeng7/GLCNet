@@ -20,7 +20,7 @@ from models.resnet import build_resnet50
 from models.pvt import build_pvt
 from models.convnextv2 import build_cnx
 
-from models.cxt_ext import ContextExtractor1, ContextExtractor2, ContextExtractor3, ContextExtractor4
+from models.cxt_ext import ContextExtractor1, ContextExtractor2
 
 
 config = Config()
@@ -81,10 +81,6 @@ class GLCNet(nn.Module):
                     self.cxt_scene_extractor = ContextExtractor1(config.cxt_scene_len)
                 elif config.cxt_ext_scene == 2:
                     self.cxt_scene_extractor = ContextExtractor2(config.cxt_scene_len)
-                elif config.cxt_ext_scene == 3:
-                    self.cxt_scene_extractor = ContextExtractor3(config.cxt_scene_len)
-                elif config.cxt_ext_scene == 4:
-                    self.cxt_scene_extractor = ContextExtractor4(config.cxt_scene_len)
                 else:
                     self.cxt_scene_extractor = nn.Sequential(
                         nn.AdaptiveMaxPool2d(1)
@@ -94,10 +90,6 @@ class GLCNet(nn.Module):
                     self.cxt_group_extractor = ContextExtractor1(config.cxt_group_len)
                 elif config.cxt_ext_group == 2:
                     self.cxt_group_extractor = ContextExtractor2(config.cxt_group_len)
-                elif config.cxt_ext_group == 3:
-                    self.cxt_group_extractor = ContextExtractor3(config.cxt_group_len)
-                elif config.cxt_ext_group == 4:
-                    self.cxt_group_extractor = ContextExtractor4(config.cxt_group_len)
                 else:
                     self.cxt_group_extractor = nn.Sequential(
                         nn.AdaptiveMaxPool2d(1)

@@ -5,6 +5,33 @@ from torch.nn import init
 import fvcore.nn.weight_init as weight_init
 
 
+
+class CoAttLayer(nn.Module):
+    def __init__(self, channel_in=512):
+        super(CoAttLayer, self).__init__()
+
+        self.all_attention = GAM(channel_in)
+        self.conv_output = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0) 
+        self.conv_transform = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0) 
+        self.fc_transform = nn.Linear(channel_in, channel_in)
+
+        for layer in [self.conv_output, self.conv_transform, self.fc_transform]:
+            weight_init.c2_msra_fill(layer)
+    
+    def forward(self, x):
+        if self.training:
+            x_new = self.all_attention(x)
+            x_proto = torch.mean(x_new, (0, 2, 3), True).view(1, -1)
+            x_proto = x_proto.unsqueeze(-1).unsqueeze(-1) # 1, C, 1, 1
+            weighted_x = x * x_proto
+        else:
+            x_new = self.all_attention(x)
+            x_proto = torch.mean(x_new, (0, 2, 3), True).view(1, -1)
+            x_proto = x_proto.unsqueeze(-1).unsqueeze(-1) # 1, C, 1, 1
+            weighted_x = x * x_proto
+        return weighted_x
+
+
 class GAM(nn.Module):
     def __init__(self, channel_in=512):
 
