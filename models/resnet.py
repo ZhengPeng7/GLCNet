@@ -46,7 +46,7 @@ class Res4Head(nn.Sequential):
 
 
 def build_resnet50(pretrained=True):
-    # resnet.model_urls["resnet50"] = "https://download.pytorch.org/models/resnet50-f46c3f97.pth"
+    resnet.model_urls["resnet50"] = "https://download.pytorch.org/models/resnet50-f46c3f97.pth"
     bb_model = resnet.resnet50(pretrained=pretrained if pretrained else None)
 
     # freeze layers
