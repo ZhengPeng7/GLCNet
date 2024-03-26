@@ -14,13 +14,12 @@ from torchvision.ops import boxes as box_ops
 
 from losses.oim import OIMLoss
 from config import Config
-from models.modules import SpatialGroupEnhance, SEAttention
+from models.modules import SEAttention
 
 from models.resnet import build_resnet50
 from models.pvt import build_pvt
-from models.convnextv2 import build_cnx
 
-from models.cxt_ext import ContextExtractor1, ContextExtractor2
+from models.cxt_ext import ContextExtractor1, ContextExtractor2, ContextExtractor3_scene, ContextExtractor3_group
 
 
 config = Config()
@@ -33,9 +32,7 @@ class GLCNet(nn.Module):
         if config.bb == 'resnet50':
             backbone, box_head = build_resnet50(pretrained=True)
         elif config.bb == 'pvtv2':
-            backbone, box_head = build_pvt()
-        elif config.bb == 'convnextv2':
-            backbone, box_head = build_cnx()
+            backbone, box_head = build_pvt(pvt_version=['b2', 'b1', 'b0'][2])
         else:
             print('Not a valid backbone in `config.py`')
             exit()
@@ -81,6 +78,8 @@ class GLCNet(nn.Module):
                     self.cxt_scene_extractor = ContextExtractor1(config.cxt_scene_len)
                 elif config.cxt_ext_scene == 2:
                     self.cxt_scene_extractor = ContextExtractor2(config.cxt_scene_len)
+                elif config.cxt_ext_scene == 3:
+                    self.cxt_scene_extractor = ContextExtractor3_scene(config.cxt_scene_len)
                 else:
                     self.cxt_scene_extractor = nn.Sequential(
                         nn.AdaptiveMaxPool2d(1)
@@ -90,6 +89,8 @@ class GLCNet(nn.Module):
                     self.cxt_group_extractor = ContextExtractor1(config.cxt_group_len)
                 elif config.cxt_ext_group == 2:
                     self.cxt_group_extractor = ContextExtractor2(config.cxt_group_len)
+                elif config.cxt_ext_group == 3:
+                    self.cxt_group_extractor = ContextExtractor3_group(config.cxt_group_len)
                 else:
                     self.cxt_group_extractor = nn.Sequential(
                         nn.AdaptiveMaxPool2d(1)

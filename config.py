@@ -8,12 +8,16 @@ cfg = get_default_cfg()
 class Config():
     def __init__(self) -> None:
         self.ignore_det_last_epochs = False
-        self.cxt_ext_scene = [0, 1, 2, 3, 4][2]     # [2] is the best one.
-        self.cxt_ext_group = [0, 1, 2, 3, 4][2]     # [2] is the best one.
+        self.cxt_ext_scene = [0, 1, 2, 3, 4][1]     # [2] is the best one.
+        self.cxt_ext_group = [0, 1, 2, 3, 4][1]     # [2] is the best one.
         self.lr = 0.003 * (cfg.INPUT.BATCH_SIZE_TRAIN / 3)  # adapt the lr linearly
-        self.bb = ['resnet50', 'pvtv2', 'convnextv2'][0]
-        self.pvt_weights = ['/root/autodl-tmp/weights/pvt_v2_b2.pth', ''][0]
-        self.cnx_weights = ['/root/autodl-tmp/weights/convnextv2_base_1k_224_ema.pt', ''][0]
+        self.bb = ['resnet50', 'pvtv2'][0]
+        self.pvt_weights = [
+            '/root/autodl-tmp/weights/pvt_v2_b2.pth',
+            '/root/autodl-tmp/weights/pvt_v2_b1.pth',
+            '/root/autodl-tmp/weights/pvt_v2_b0.pth',
+            '',
+        ][2]
         self.freeze_bb = False
         if 'resnet' in self.bb:
             self.bb_out_channels = [1024, 2048]

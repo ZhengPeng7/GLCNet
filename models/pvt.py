@@ -1,13 +1,9 @@
 from collections import OrderedDict
-
 import torch
 import torch.nn.functional as F
-from torchvision import models
 from torch import nn
-from config import Config
-from models.modules import SelfAtt, GAM, SpatialGroupEnhance
 
-from models.bb_pvtv2 import pvt_v2_b2
+from models.bb_pvtv2 import pvt_v2_b2, pvt_v2_b1, pvt_v2_b0
 from config import Config
 
 
@@ -44,8 +40,13 @@ class Res4Head(nn.Sequential):
         return OrderedDict([["feat_res3", x], ["feat_res4", feat]])
 
 
-def build_pvt():
-    bb_model = pvt_v2_b2()
+def build_pvt(pvt_version='b2'):
+    if pvt_version == 'b2':
+        bb_model = pvt_v2_b2()
+    elif pvt_version == 'b1':
+        bb_model = pvt_v2_b1()
+    elif pvt_version == 'b0':
+        bb_model = pvt_v2_b0()
     if config.pvt_weights:
         save_model = torch.load(config.pvt_weights)
         model_dict = bb_model.state_dict()
