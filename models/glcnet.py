@@ -32,7 +32,7 @@ class GLCNet(nn.Module):
         if config.bb == 'resnet50':
             backbone, box_head = build_resnet50(pretrained=True)
         elif config.bb == 'pvtv2':
-            backbone, box_head = build_pvt(pvt_version=['b2', 'b1', 'b0'][2])
+            backbone, box_head = build_pvt(pvt_weights=config.pvt_weights)
         else:
             print('Not a valid backbone in `config.py`')
             exit()

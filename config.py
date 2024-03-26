@@ -7,9 +7,13 @@ cfg = get_default_cfg()
 
 class Config():
     def __init__(self) -> None:
-        self.ignore_det_last_epochs = False
-        self.cxt_ext_scene = [0, 1, 2, 3, 4][1]     # [2] is the best one.
-        self.cxt_ext_group = [0, 1, 2, 3, 4][1]     # [2] is the best one.
+        # Context Features
+        self.cxt_scene_enabled = True
+        self.cxt_group_enabled = False
+        self.cxt_group_labelledOnly = False
+
+        self.cxt_ext_scene = [0, 1, 2, 3, 4][3]     # [1] is the best one.
+        self.cxt_ext_group = [0, 1, 2, 3, 4][3]     # [1] is the best one.
         self.lr = 0.003 * (cfg.INPUT.BATCH_SIZE_TRAIN / 3)  # adapt the lr linearly
         self.bb = ['resnet50', 'pvtv2'][0]
         self.pvt_weights = [
@@ -17,20 +21,23 @@ class Config():
             '/root/autodl-tmp/weights/pvt_v2_b1.pth',
             '/root/autodl-tmp/weights/pvt_v2_b0.pth',
             '',
-        ][2]
+        ][0]
         self.freeze_bb = False
         if 'resnet' in self.bb:
             self.bb_out_channels = [1024, 2048]
         elif 'pvt' in self.bb:
-            self.bb_out_channels = [320, 512]
+            if 'b2' in self.pvt_weights:
+                self.bb_out_channels = [320, 512]
+            if 'b1' in self.pvt_weights:
+                self.bb_out_channels = [320, 512]
+            if 'b0' in self.pvt_weights:
+                self.bb_out_channels = [160, 256]
         else:
             self.bb_out_channels = [512, 1024]
+        self.cxt_scene_len = self.bb_out_channels[0] * int(self.cxt_scene_enabled)     # feat-res4
+        self.cxt_group_len = self.bb_out_channels[1] * int(self.cxt_group_enabled)     # feat-res5
 
-        # Context Features
-        self.cxt_scene_enabled = True
-        self.cxt_group_enabled = False
-        self.cxt_group_labelledOnly = False
-
+        self.ignore_det_last_epochs = False
         self.nae_mix_res3 = True
         self.nae_multi = True
         self.nae_feature_seperate = True
@@ -47,10 +54,6 @@ class Config():
                 if self.cxt_group_enabled:
                     self.nae_dims.append(128)
                 self.bn_feature_seperately = False
-
-
-        self.cxt_scene_len = 1024 * int(self.cxt_scene_enabled)     # feat-res4
-        self.cxt_group_len = 2048 * int(self.cxt_group_enabled)     # feat-res5
 
         # Fusion on features (closed)
         self.relu_after_mlp = False

@@ -40,12 +40,12 @@ class Res4Head(nn.Sequential):
         return OrderedDict([["feat_res3", x], ["feat_res4", feat]])
 
 
-def build_pvt(pvt_version='b2'):
-    if pvt_version == 'b2':
+def build_pvt(pvt_weights='b2'):
+    if 'b2' in pvt_weights:
         bb_model = pvt_v2_b2()
-    elif pvt_version == 'b1':
+    elif 'b1' in pvt_weights:
         bb_model = pvt_v2_b1()
-    elif pvt_version == 'b0':
+    elif 'b0' in pvt_weights:
         bb_model = pvt_v2_b0()
     if config.pvt_weights:
         save_model = torch.load(config.pvt_weights)
