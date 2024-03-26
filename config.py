@@ -12,8 +12,8 @@ class Config():
         self.cxt_group_enabled = False
         self.cxt_group_labelledOnly = False
 
-        self.cxt_ext_scene = [0, 1, 2, 3, 4][3]     # [1] is the best one.
-        self.cxt_ext_group = [0, 1, 2, 3, 4][3]     # [1] is the best one.
+        self.cxt_ext_scene = [0, 1, 2, 3, 4][1]     # [1] is the best one.
+        self.cxt_ext_group = [0, 1, 2, 3, 4][1]     # [1] is the best one.
         self.lr = 0.003 * (cfg.INPUT.BATCH_SIZE_TRAIN / 3)  # adapt the lr linearly
         self.bb = ['resnet50', 'pvtv2'][0]
         self.pvt_weights = [
