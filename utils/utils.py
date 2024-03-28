@@ -122,27 +122,14 @@ class MetricLogger(object):
         iter_time = SmoothedValue(fmt="{avg:.4f}")
         data_time = SmoothedValue(fmt="{avg:.4f}")
         space_fmt = ":" + str(len(str(len(iterable)))) + "d"
-        if torch.cuda.is_available():
-            log_msg = self.delimiter.join(
-                [
-                    header,
-                    "[{0" + space_fmt + "}/{1}]",
-                    "time: {time_now}",
-                    "{meters}",
-                    "max mem: {memory:.0f}",
-                ]
-            )
-        else:
-            log_msg = self.delimiter.join(
-                [
-                    header,
-                    "[{0" + space_fmt + "}/{1}]",
-                    "time: {time_now}",
-                    "{meters}",
-                    "data: {data}",
-                ]
-            )
-        MB = 1024.0 * 1024.0
+        log_msg = self.delimiter.join(
+            [
+                header,
+                "[{0" + space_fmt + "}/{1}]",
+                "time: {time_now}",
+                "{meters}",
+            ]
+        )
         for obj in iterable:
             data_time.update(time.time() - end)
             yield obj
@@ -150,25 +137,14 @@ class MetricLogger(object):
             if i % print_freq == 0 or i == len(iterable) - 1:
                 time_now = str(datetime.datetime.now())
                 time_now = time_now.rstrip('.' + time_now.split('.')[-1])
-                if torch.cuda.is_available():
-                    print(
-                        log_msg.format(
-                            i,
-                            len(iterable),
-                            time_now=time_now,
-                            meters=str(self),
-                            memory=torch.cuda.max_memory_allocated() / MB,
-                        )
+                print(
+                    log_msg.format(
+                        i,
+                        len(iterable),
+                        time_now=time_now,
+                        meters=str(self),
                     )
-                else:
-                    print(
-                        log_msg.format(
-                            i,
-                            len(iterable),
-                            time_now=time_now,
-                            meters=str(self),
-                        )
-                    )
+                )
             i += 1
             end = time.time()
         total_time = time.time() - start_time

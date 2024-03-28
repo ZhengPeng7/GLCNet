@@ -11,7 +11,7 @@ from config import ConfigMVN
 class MVN(BaseDataset):
     def __init__(self, root, transforms, split):
         self.name = "MVN"
-        self.img_prefix = osp.join(root, "Image", "SSM")
+        self.img_prefix = osp.join(root, "Image")
         self.gallery_size = ConfigMVN().gallery_size
         self.test_mat = 'TestG{}'.format(self.gallery_size)
         self.test_mat_path = osp.join(root, "annotation/test/train_test/{}.mat".format(self.test_mat))

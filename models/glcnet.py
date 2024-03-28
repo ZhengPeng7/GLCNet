@@ -453,7 +453,11 @@ class SeqRoIHeads(RoIHeads):
                     box_features["feat_res4"] = self.fuser_mlp(box_features["feat_res4"].squeeze(-1).squeeze(-1)).unsqueeze(-1).unsqueeze(-1)
                 elif self.fuser_conv:
                     box_features["feat_res4"] = self.fuser_conv(box_features["feat_res4"].squeeze(-1)).unsqueeze(-1)
-        box_embeddings, box_cls_scores = self.embedding_head(box_features if config.nae_mix_res3 or config.nae_multi else OrderedDict([['feat_res4', box_features["feat_res4"]]]))
+        if config.nae_mix_res3 or config.nae_multi:
+            x_embedding_head = box_features
+        else:
+            x_embedding_head = OrderedDict([['feat_res4', box_features["feat_res4"]]])
+        box_embeddings, box_cls_scores = self.embedding_head(x_embedding_head)
         if box_cls_scores.dim() == 0:
             box_cls_scores = box_cls_scores.unsqueeze(0)
 

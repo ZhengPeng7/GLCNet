@@ -1,7 +1,5 @@
-import numpy as np
 import torch
 import torch.nn as nn
-from torch.nn import init
 import fvcore.nn.weight_init as weight_init
 
 

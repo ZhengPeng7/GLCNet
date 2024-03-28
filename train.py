@@ -13,7 +13,6 @@ from models.glcnet import GLCNet
 from utils.utils import mkdir, resume_from_ckpt, save_on_master, set_random_seed
 from config import Config
 
-from losses.softmax_loss import SoftmaxLoss
 
 config = Config()
 

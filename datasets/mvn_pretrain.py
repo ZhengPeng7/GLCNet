@@ -1,9 +1,7 @@
 import os
 import os.path as osp
-import re
 
 import numpy as np
-from numpy import array, int32
 from scipy.io import loadmat
 
 from .base import BaseDataset
@@ -12,7 +10,7 @@ from .base import BaseDataset
 class MVN_pretrain(BaseDataset):
     def __init__(self, root, transforms, split):
         self.name = "MVN_pretrain"
-        self.img_prefix = osp.join(root, "frames")
+        self.img_prefix = osp.join(root, "Image")
         self.anno_preloaded = 'data/anno_loaded/{}.txt'.format(split)
         super(MVN_pretrain, self).__init__(root, transforms, split)
 
