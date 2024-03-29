@@ -62,14 +62,13 @@ pip install -r requirements.txt
 Run the `demo.py` to make inference on given images. GLCNet runs at **10.3 fps** on a single Tesla V100 GPU with batch_size 3.
 
 ### Weights
-
-You can download our well-trained models -- cuhk_957.pth and prw_469.pth from [my google-drive folder for GLCNet](https://drive.google.com/drive/folders/1wbq5jptOGxXDE0ze1tAMdcvXEaE1Wybt?usp=sharing). 
+You can download our well-trained models -- cuhk_957.pth and prw_469.pth from [my google-drive folder for GLCNet](https://drive.google.com/drive/folders/1wbq5jptOGxXDE0ze1tAMdcvXEaE1Wybt).
 
 ### MovieNet-CS
+Download the whole MovieNet-PS dataset from our [google-drive](https://drive.google.com/file/d/1TKIzsUUo4zlNJFLT1_KzQCsL2zkOzwUJ/view?usp=drive_link) (25.2GB, with frames and annotations).  
+To extend person search framework to a more challenging setting, i.e., movies. We borrow the character detection and ID annotations from the [MovieNet](http://movienet.site/) dataset to organize MovieNet-CS, and set different levels of training set and different gallery size same as CUHK-SYSU. MovieNet-CS is saved exactly the same format and structure as CUHK-SYSU, which could be of great convenience to further research and experiments. BTW, you can also download all the movie frames in MovieNet on their official website.
 
-To extend person search framework to a more challenging task, i.e., character search (CS). We borrow the character detection and ID annotations from the [MovieNet](http://movienet.site/) dataset to organize MovieNet-CS, and set different levels of training set and different gallery size same as CUHK-SYSU. MovieNet-CS is saved exactly the same format and structure as CUHK-SYSU, which could be of great convenience to further research and experiments. If you want to use MovieNet-CS, please download movie frames on the official website of MovieNet and our reorganized annotations (`anno_mvn-cs.zip`) from [[google-drive](https://drive.google.com/drive/folders/1kUr7v9_LUSSjW5PyNbGqaiM6peXNvbiU)][[BaiduDisk](https://pan.baidu.com/s/1IsytjRwMJ75fUbepS3je-A?pwd=moHe)]. If you only want the `frames_CS.zip` which is the set of frames where we eliminate the unused ones (much smaller size, 700k+ frames), you can download it from [[google-drive](https://drive.google.com/drive/folders/1kUr7v9_LUSSjW5PyNbGqaiM6peXNvbiU)][[BaiduDisk](https://pan.baidu.com/s/1sljQB9hiFWhJsl1TmnxJOw?pwd=moHe)].
-
-If you work on server, we highly recommend you to `pip install gdown` and use `gdown` to download the subsets of the `frames_CS.zip`, i.e., `frames_CS-1.zip ~ frames_CS-6.zip` and combine them together.
+If your network is unstable, you can also take a look at this [google-drive folder](https://drive.google.com/drive/folders/1kUr7v9_LUSSjW5PyNbGqaiM6peXNvbiU) to separately download the annotation files and subsets of the frames, i.e., `frames_CS-1.zip ~ frames_CS-6.zip` and combine them together.
 
 ### Acknowledgement
 
@@ -78,16 +77,21 @@ Thanks to the solid codebase from [SeqNet](https://github.com/serend1p1ty/SeqNet
 ### Citation
 
 ```bibtex
-@inproceedings{GLCNet,
-    author   = {Jie Qin and
-                Peng Zheng and
-                Yichao Yan and
-                Quan Rong and
-                Xiaogang Cheng and
-                Bingbing Ni},
-    title    = {MovieNet-PS: A Large-Scale Person Search Dataset in the Wild},
-    booktitle  = ICASSP,
-    year     = {2023}
+@article{zheng2021glcnet,
+  title={Global-local context network for person search},
+  author={Zheng, Peng and Qin, Jie and Yan, Yichao and Liao, Shengcai and Ni, Bingbing and Cheng, Xiaogang and Shao, Ling},
+  journal={arXiv preprint arXiv:2112.02500},
+  volume={8},
+  year={2021}
+}
+
+@inproceedings{qin2023movienet,
+  title={MovieNet-PS: a large-scale person search dataset in the wild},
+  author={Qin, Jie and Zheng, Peng and Yan, Yichao and Quan, Rong and Cheng, Xiaogang and Ni, Bingbing},
+  booktitle=ICASSP,
+  pages={1--5},
+  year={2023},
+  organization={IEEE}
 }
 ```
 
