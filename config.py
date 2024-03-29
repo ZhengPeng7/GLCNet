@@ -7,6 +7,8 @@ cfg = get_default_cfg()
 
 class Config():
     def __init__(self) -> None:
+        self.multi_part_matching = True
+        self.mps_channels = [None, 256][0]
         # Context Features
         self.cxt_scene_enabled = True
         self.cxt_group_enabled = False
@@ -37,6 +39,7 @@ class Config():
         self.cxt_scene_len = self.bb_out_channels[0] * int(self.cxt_scene_enabled)     # feat-res4
         self.cxt_group_len = self.bb_out_channels[1] * int(self.cxt_group_enabled)     # feat-res5
 
+        self.seq_head = True
         self.ignore_det_last_epochs = False
         self.nae_mix_res3 = True
         self.nae_multi = True

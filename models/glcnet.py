@@ -16,7 +16,7 @@ from losses.oim import OIMLoss
 from config import Config
 from models.modules import SEAttention
 
-from models.resnet import build_resnet50
+from models.resnet import build_resnet50, MultiPartSpliter
 from models.pvt import build_pvt
 
 from models.cxt_ext import ContextExtractor1, ContextExtractor2, ContextExtractor3_scene, ContextExtractor3_group
@@ -295,6 +295,16 @@ class SeqRoIHeads(RoIHeads):
             if config.cxt_group_enabled:
                 featmap_names.append('cxt_group')
                 in_channels.append(config.cxt_group_len)
+        if config.multi_part_matching:
+            mps_channels = config.mps_channels if config.mps_channels else 2048
+            feat_names_channels = {
+                'feat_granularity_1': mps_channels,
+                'feat_granularity_2_horizon_1': mps_channels, 'feat_granularity_2_horizon_2': mps_channels,
+                'feat_granularity_3_horizon_1': mps_channels, 'feat_granularity_3_horizon_2': mps_channels, 'feat_granularity_3_horizon_3': mps_channels,
+            }
+            for feat_name, feat_channels in feat_names_channels.items():
+                featmap_names.append(feat_name)
+                in_channels.append(feat_channels)
         self.embedding_head = NormAwareEmbedding(
             featmap_names=featmap_names,
             in_channels=in_channels
@@ -409,14 +419,17 @@ class SeqRoIHeads(RoIHeads):
 
         # --------------------- Baseline head -------------------- #
         box_features = self.box_roi_pool(features, boxes, image_shapes)
+        if config.multi_part_matching:
+            # features.shape == batch_size, 1024, 58, 94
+            self.mps = MultiPartSpliter(out_channels=config.mps_channels).cuda()
+            mps_feat_dict = self.mps(box_features)
         box_features = self.reid_head(box_features)
+        box_features.update(mps_feat_dict)
         box_regs = self.box_predictor(box_features["feat_res4"])
         if config.cxt_scene_enabled or config.cxt_group_enabled:
             feat_res4_ori = box_features['feat_res4']
             if config.cxt_scene_enabled:
                 cxt_scene = self.cxt_scene_extractor(features['feat_res3']).squeeze(-1)
-                # print(0, features['feat_res3'].shape)
-                # print(1, cxt_scene.shape)
                 cxt_scene_proposalNum = torch.cat([
                     cxt_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
                     ], dim=0)
@@ -646,6 +659,10 @@ class NormAwareEmbedding(nn.Module):
             indv_dims = self._split_embedding_dim(self.dim[0])
         else:
             indv_dims = dim
+            if config.multi_part_matching:
+                num_parts = 1 + 2 + 3       # 1 + 2 + 3 part for multi_part_matching, refer to the definition of MultiPartSpliter class.
+                for idx_in_channel in range(num_parts):
+                    indv_dims.append(self.in_channels[idx_in_channel-num_parts])
         for ftname, in_channel, indv_dim in zip(self.featmap_names, self.in_channels, indv_dims):
             proj = nn.Sequential(nn.Linear(in_channel, indv_dim), nn.BatchNorm1d(indv_dim))
             init.normal_(proj[0].weight, std=0.01)
