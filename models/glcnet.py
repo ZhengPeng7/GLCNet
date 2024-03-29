@@ -424,7 +424,8 @@ class SeqRoIHeads(RoIHeads):
             self.mps = MultiPartSpliter(out_channels=config.mps_channels).cuda()
             mps_feat_dict = self.mps(box_features)
         box_features = self.reid_head(box_features)
-        box_features.update(mps_feat_dict)
+        if config.multi_part_matching:
+            box_features.update(mps_feat_dict)
         box_regs = self.box_predictor(box_features["feat_res4"])
         if config.cxt_scene_enabled or config.cxt_group_enabled:
             feat_res4_ori = box_features['feat_res4']
@@ -661,8 +662,9 @@ class NormAwareEmbedding(nn.Module):
             indv_dims = dim
             if config.multi_part_matching:
                 num_parts = 1 + 2 + 3       # 1 + 2 + 3 part for multi_part_matching, refer to the definition of MultiPartSpliter class.
-                for idx_in_channel in range(num_parts):
-                    indv_dims.append(self.in_channels[idx_in_channel-num_parts])
+                for _ in range(num_parts):
+                    indv_dims.append(config.mps_norm_len)
+        print('indv_dims:', indv_dims)
         for ftname, in_channel, indv_dim in zip(self.featmap_names, self.in_channels, indv_dims):
             proj = nn.Sequential(nn.Linear(in_channel, indv_dim), nn.BatchNorm1d(indv_dim))
             init.normal_(proj[0].weight, std=0.01)

@@ -7,8 +7,10 @@ cfg = get_default_cfg()
 
 class Config():
     def __init__(self) -> None:
-        self.multi_part_matching = True
-        self.mps_channels = [None, 256][0]
+        self.multi_part_matching = True    # 1.8min for 200 steps w/ True, 1.1 min for 200 steps w/ False.
+        self.mps_channels = [None, 256][1]
+        self.mps_norm_len = 384 // (1 + 2 + 3)
+        self.mps_blk = ['BasicDecBlk', 'resnet50_layer4'][0]
         # Context Features
         self.cxt_scene_enabled = True
         self.cxt_group_enabled = False
@@ -16,7 +18,8 @@ class Config():
 
         self.cxt_ext_scene = [0, 1, 2, 3, 4][1]     # [1] is the best one.
         self.cxt_ext_group = [0, 1, 2, 3, 4][1]     # [1] is the best one.
-        self.lr = 0.003 * (cfg.INPUT.BATCH_SIZE_TRAIN / 3)  # adapt the lr linearly
+        self.batch_size = cfg.INPUT.BATCH_SIZE_TRAIN
+        self.lr = 0.003 * (self.batch_size / 3)  # adapt the lr linearly
         self.bb = ['resnet50', 'pvtv2'][0]
         self.pvt_weights = [
             '/root/autodl-tmp/weights/pvt_v2_b2.pth',

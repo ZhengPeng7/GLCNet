@@ -3,6 +3,7 @@ from collections import OrderedDict
 import torch.nn.functional as F
 from torchvision.models import resnet
 from torch import nn
+from models.modules import BasicDecBlk
 from config import Config
 
 
@@ -67,27 +68,37 @@ class MultiPartSpliter(nn.Module):
     def __init__(self, out_channels=None):
         super(MultiPartSpliter, self).__init__()
         self.out_channels = out_channels
-        resnet50_layer4_1 = build_resnet50_layer4()
-        resnet50_layer4_2 = build_resnet50_layer4()
-        resnet50_layer4_3 = build_resnet50_layer4()     # downscale hei and wid as 1/2.
+        inter_channels = 512
+        if config.mps_blk == 'BasicDecBlk':
+            # BasicDecBlk keeps the resolution.
+            block_1 = BasicDecBlk(in_channels=1024, out_channels=inter_channels)
+            block_2 = BasicDecBlk(in_channels=1024, out_channels=inter_channels)
+            block_3 = BasicDecBlk(in_channels=1024, out_channels=inter_channels)
+            in_feat_size = (14//1, 14//1)     # shape of the output of `box_roi_pool(features, boxes, image_shapes)` in `glcnet.py`.
+        elif config.mps_blk == 'resnet50_layer4':
+            # resnet50_layer4 downscales hei and wid as 1/2
+            block_1 = build_resnet50_layer4()
+            block_2 = build_resnet50_layer4()
+            block_3 = build_resnet50_layer4()
+            in_feat_size = (14//2, 14//2)
         scales = [1, 2, 3]
-        in_feat_size = (14//2, 14//2)     # shape of resnet50_layer4(the output of `box_roi_pool(features, boxes, image_shapes)` in `glcnet.py`).
+        
         self.block_granularity_1 = nn.Sequential(
-            resnet50_layer4_1,
+            block_1,
             nn.MaxPool2d(kernel_size=(in_feat_size[0] // scales[0], in_feat_size[1])),
         )
         self.block_granularity_2 = nn.Sequential(
-            resnet50_layer4_2,
+            block_2,
             nn.MaxPool2d(kernel_size=(in_feat_size[0] // scales[1], in_feat_size[1])),
         )
         self.block_granularity_3 = nn.Sequential(
-            resnet50_layer4_3,
+            block_3,
             nn.MaxPool2d(kernel_size=(in_feat_size[0] // scales[2], in_feat_size[1])),
         )
         if out_channels:
-            self.reducer_granularity_1 = nn.Sequential(nn.Conv2d(2048, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels), nn.ReLU())
-            self.reducer_granularity_2 = nn.Sequential(nn.Conv2d(2048, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels), nn.ReLU())
-            self.reducer_granularity_3 = nn.Sequential(nn.Conv2d(2048, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels), nn.ReLU())
+            self.reducer_granularity_1 = nn.Sequential(nn.Conv2d(inter_channels, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels), nn.ReLU())
+            self.reducer_granularity_2 = nn.Sequential(nn.Conv2d(inter_channels, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels), nn.ReLU())
+            self.reducer_granularity_3 = nn.Sequential(nn.Conv2d(inter_channels, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels), nn.ReLU())
     
     def forward(self, x):
         feat_granularity_1 = self.block_granularity_1(x)
