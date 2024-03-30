@@ -185,7 +185,11 @@ class GLCNet(nn.Module):
             # query
             boxes = [t["boxes"] for t in targets]
             box_features = self.roi_heads.box_roi_pool(features, boxes, images.image_sizes)
+            if config.multi_part_matching:
+                mps_feat_dict = self.mps(box_features)
             box_features = self.roi_heads.reid_head(box_features)
+            if config.multi_part_matching:
+                box_features.update(mps_feat_dict)
             if config.cxt_scene_enabled or config.cxt_group_enabled:
                 feat_res4_ori = box_features['feat_res4']
                 if config.cxt_scene_enabled:
@@ -296,6 +300,7 @@ class SeqRoIHeads(RoIHeads):
                 featmap_names.append('cxt_group')
                 in_channels.append(config.cxt_group_len)
         if config.multi_part_matching:
+            self.mps = MultiPartSpliter(out_channels=config.mps_channels)
             mps_channels = config.mps_channels if config.mps_channels else 2048
             feat_names_channels = {
                 'feat_granularity_1': mps_channels,
@@ -369,7 +374,11 @@ class SeqRoIHeads(RoIHeads):
             cws = False
             gt_box = [targets[0]["boxes"]]
             gt_box_features = self.box_roi_pool(features, gt_box, image_shapes)
+            if config.multi_part_matching:
+                mps_feat_dict = self.mps(gt_box_features)
             gt_box_features = self.reid_head(gt_box_features)
+            if config.multi_part_matching:
+                gt_box_features.update(mps_feat_dict)
             feat_res4_ori = gt_box_features['feat_res4']
             if config.cxt_scene_enabled:
                 cxt_scene = self.cxt_scene_extractor(features['feat_res3']).squeeze(-1)
@@ -421,7 +430,6 @@ class SeqRoIHeads(RoIHeads):
         box_features = self.box_roi_pool(features, boxes, image_shapes)
         if config.multi_part_matching:
             # features.shape == batch_size, 1024, 58, 94
-            self.mps = MultiPartSpliter(out_channels=config.mps_channels).cuda()
             mps_feat_dict = self.mps(box_features)
         box_features = self.reid_head(box_features)
         if config.multi_part_matching:
@@ -664,7 +672,7 @@ class NormAwareEmbedding(nn.Module):
                 num_parts = 1 + 2 + 3       # 1 + 2 + 3 part for multi_part_matching, refer to the definition of MultiPartSpliter class.
                 for _ in range(num_parts):
                     indv_dims.append(config.mps_norm_len)
-        print('indv_dims:', indv_dims)
+
         for ftname, in_channel, indv_dim in zip(self.featmap_names, self.in_channels, indv_dims):
             proj = nn.Sequential(nn.Linear(in_channel, indv_dim), nn.BatchNorm1d(indv_dim))
             init.normal_(proj[0].weight, std=0.01)
@@ -689,6 +697,7 @@ class NormAwareEmbedding(nn.Module):
             tensor of size (BatchSize, dim), L2 normalized embeddings.
             tensor of size (BatchSize, ) rescaled norm of embeddings, as class_logits.
         """
+
         assert len(featmaps) == len(self.featmap_names)
         if len(featmaps) == 1:
             for k, v in featmaps.items():
