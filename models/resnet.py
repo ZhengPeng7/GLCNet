@@ -71,14 +71,15 @@ class MultiPartSpliter(nn.Module):
         if config.mps_blk == 'BasicDecBlk':
             # BasicDecBlk keeps the resolution.
             inter_channels = 512
-            block_1 = BasicDecBlk(in_channels=1024, out_channels=inter_channels if out_channels else out_channels)
-            block_2 = BasicDecBlk(in_channels=1024, out_channels=inter_channels if out_channels else out_channels)
-            block_3 = BasicDecBlk(in_channels=1024, out_channels=inter_channels if out_channels else out_channels)
+            out_channel_mps_blk = 2048
+            block_1 = BasicDecBlk(in_channels=1024, out_channels=inter_channels if out_channels else out_channel_mps_blk)
+            block_2 = BasicDecBlk(in_channels=1024, out_channels=inter_channels if out_channels else out_channel_mps_blk)
+            block_3 = BasicDecBlk(in_channels=1024, out_channels=inter_channels if out_channels else out_channel_mps_blk)
             in_feat_size = (14//1, 14//1)     # shape of the output of `box_roi_pool(features, boxes, image_shapes)` in `glcnet.py`.
         elif config.mps_blk == 'resnet50_layer4':
             # resnet50_layer4 downscales hei and wid as 1/2
             inter_channels = 2048
-            block_1 = build_resnet50_layer4()
+            block_1 = build_resnet50_layer4()   # out_channels of resnet50_layer4 is 2048.
             block_2 = build_resnet50_layer4()
             block_3 = build_resnet50_layer4()
             in_feat_size = (14//2, 14//2)
