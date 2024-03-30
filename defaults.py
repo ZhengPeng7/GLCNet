@@ -140,7 +140,7 @@ _C.DISP_PERIOD = 200
 # Whether to use tensorboard for visualization
 _C.TF_BOARD = True
 # The device loading the model
-_C.DEVICE = "cuda"
+_C.DEVICE = ["cuda", 'cpu'][0]
 # Set seed to negative to fully randomize everything
 _C.SEED = 1
 # Directory where output files are written
