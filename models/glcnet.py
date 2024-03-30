@@ -117,6 +117,8 @@ class GLCNet(nn.Module):
                             if config.bnRelu_after_conv:
                                 fusion_layers_conv.append(nn.BatchNorm1d(channel_opt))
                                 fusion_layers_conv.append(nn.ReLU(inplace=True))
+        if config.multi_part_matching:
+            self.mps = MultiPartSpliter(out_channels=config.mps_channels)
         self.fuser_att = nn.Sequential(*fusion_layers_att)
         self.fuser_mlp = nn.Sequential(*fusion_layers_mlp)
         self.fuser_conv = nn.Sequential(*fusion_layers_conv)
@@ -145,6 +147,7 @@ class GLCNet(nn.Module):
             cxt_scene_extractor=self.cxt_scene_extractor if config.cxt_scene_enabled else None,
             cxt_group_extractor=self.cxt_group_extractor if config.cxt_group_enabled else None,
             fuser=self.fuser if config.use_fusion else [[], [], []],
+            mps=self.mps if config.multi_part_matching else None
         )
 
         transform = GeneralizedRCNNTransform(
@@ -279,6 +282,7 @@ class SeqRoIHeads(RoIHeads):
         cxt_scene_extractor,
         cxt_group_extractor,
         fuser,
+        mps,
         *args,
         **kwargs
     ):
@@ -300,7 +304,7 @@ class SeqRoIHeads(RoIHeads):
                 featmap_names.append('cxt_group')
                 in_channels.append(config.cxt_group_len)
         if config.multi_part_matching:
-            self.mps = MultiPartSpliter(out_channels=config.mps_channels)
+            self.mps = mps
             mps_channels = config.mps_channels if config.mps_channels else 2048
             feat_names_channels = {
                 'feat_granularity_1': mps_channels,
