@@ -211,9 +211,10 @@ class GLCNet(nn.Module):
                         feat_res4_per_image.append(feat_res4_ori[num_box:num_box+box.shape[0]])
                         num_box += box.shape[0]
                     cxt_group_per_image = []
-                    for feat_res4, whether_box_has_person_lst in zip(feat_res4_per_image, whether_box_has_person_lst_per_image):
+                    for feat_res4, whether_box_has_person_lst in zip(feat_res4_per_image, [True]):
                         feat_persons = feat_res4[whether_box_has_person_lst]
-                        feat_persons_squeezed = torch.mean(feat_persons, dim=0).unsqueeze(0)
+                        feat_persons_squeezed = torch.mean(feat_persons, dim=0)
+                        # feat_persons_squeezed = feat_persons_squeezed.unsqueeze(0)
                         cxt_group_per_image.append(feat_persons_squeezed)
                     cxt_group_per_image = torch.cat(cxt_group_per_image, dim=0)
                     cxt_group_per_image = self.cxt_group_extractor(cxt_group_per_image)
@@ -355,10 +356,9 @@ class SeqRoIHeads(RoIHeads):
             boxes, _, box_pid_labels, box_reg_targets = self.select_training_samples(boxes, targets)
         else:
             # invoke the postprocess method inherited from parent class to process proposals
-            boxes, scores, _ = self.postprocess_proposals(
+            boxes, scores, box_pid_labels = self.postprocess_proposals(
                 proposal_cls_scores, proposal_regs, proposals, image_shapes
             )
-        
         if config.cxt_group_enabled:
             whether_box_has_person_lst_per_image = []
             for box_pid_label in box_pid_labels:
@@ -367,6 +367,7 @@ class SeqRoIHeads(RoIHeads):
                 else:
                     whether_box_has_person_lst = box_pid_label > 0
                 whether_box_has_person_lst_per_image.append(whether_box_has_person_lst)
+        
 
         cws = True
         gt_det = None
@@ -400,9 +401,9 @@ class SeqRoIHeads(RoIHeads):
                     feat_res4_per_image.append(feat_res4_ori[num_box:num_box+box.shape[0]])
                     num_box += box.shape[0]
                 cxt_group_per_image = []
-                for feat_res4, whether_box_has_person_lst in zip(feat_res4_per_image, whether_box_has_person_lst_per_image):
+                for feat_res4, whether_box_has_person_lst in zip(feat_res4_per_image, [True]):
                     feat_persons = feat_res4[whether_box_has_person_lst]
-                    feat_persons_squeezed = torch.mean(feat_persons, dim=0).unsqueeze(0)
+                    feat_persons_squeezed = torch.mean(feat_persons, dim=0)
                     cxt_group_per_image.append(feat_persons_squeezed)
                 cxt_group_per_image = torch.cat(cxt_group_per_image, dim=0)
                 cxt_group_per_image = self.cxt_group_extractor(cxt_group_per_image)
@@ -465,7 +466,8 @@ class SeqRoIHeads(RoIHeads):
                     # Select the features of boxes which have persons. Each image has 128 boxes.
                     # cxt_group_per_image.append(torch.sum(feat_res4 * whether_box_has_person_lst, dim=0).unsqueeze(0) / (torch.sum(whether_box_has_person_lst) + 1e-5))
                     feat_persons = feat_res4[whether_box_has_person_lst]
-                    feat_persons_squeezed = torch.mean(feat_persons, dim=0).unsqueeze(0)
+                    feat_persons_squeezed = torch.mean(feat_persons, dim=0)
+                    feat_persons_squeezed = feat_persons_squeezed.unsqueeze(0)
                     cxt_group_per_image.append(feat_persons_squeezed)
                 cxt_group_per_image = torch.cat(cxt_group_per_image, dim=0)
                 cxt_group_per_image = self.cxt_group_extractor(cxt_group_per_image)

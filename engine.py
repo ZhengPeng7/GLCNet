@@ -70,7 +70,6 @@ def train_one_epoch(cfg, model, optimizer, data_loader, device, epoch, tfboard=N
             iter = epoch * len(data_loader) + i
             for k, v in loss_dict_reduced.items():
                 tfboard.add_scalars("train", {k: v}, iter)
-        break
 
 
 @torch.no_grad()
@@ -94,40 +93,40 @@ def evaluate_performance(
         query_feats = eval_cache["query_feats"]
         query_box_feats = eval_cache["query_box_feats"]
     else:
-        # gallery_dets, gallery_feats = [], []
-        # print('Extracting gallery ...')
-        # # for images, targets in tqdm(gallery_loader, ncols=0):
-        # for images, targets in gallery_loader:
-        #     images, targets = to_device(images, targets, device)
-        #     if not use_gt:
-        #         outputs = model(images)
-        #     else:
-        #         boxes = targets[0]["boxes"]
-        #         n_boxes = boxes.size(0)
-        #         embeddings = model(images, targets)
-        #         outputs = [
-        #             {
-        #                 "boxes": boxes,
-        #                 "embeddings": torch.cat(embeddings),
-        #                 "labels": torch.ones(n_boxes).to(device),
-        #                 "scores": torch.ones(n_boxes).to(device),
-        #             }
-        #         ]
+        gallery_dets, gallery_feats = [], []
+        print('Extracting gallery ...')
+        # for images, targets in tqdm(gallery_loader, ncols=0):
+        for images, targets in gallery_loader:
+            images, targets = to_device(images, targets, device)
+            if not use_gt:
+                outputs = model(images)
+            else:
+                boxes = targets[0]["boxes"]
+                n_boxes = boxes.size(0)
+                embeddings = model(images, targets)
+                outputs = [
+                    {
+                        "boxes": boxes,
+                        "embeddings": torch.cat(embeddings),
+                        "labels": torch.ones(n_boxes).to(device),
+                        "scores": torch.ones(n_boxes).to(device),
+                    }
+                ]
 
-        #     for images, output in zip(images, outputs):
-        #         expand_ratio = 0
-        #         if expand_ratio:
-        #             for idx_box, (box, image) in enumerate(zip(output["boxes"], images)):
-        #                 x1, y1, x2, y2 = box
-        #                 hei_image, wid_image = image.shape[-2:]
-        #                 wid, hei = (x2 - x1) / 2, (y2 - y1) / 2
-        #                 output["boxes"][idx_box][0] = max(0, x1 - wid * expand_ratio)
-        #                 output["boxes"][idx_box][1] = max(0, y1 - wid * expand_ratio)
-        #                 output["boxes"][idx_box][2] = min(wid_image-1, x2 + hei * expand_ratio)
-        #                 output["boxes"][idx_box][3] = min(hei_image-1, y2 + hei * expand_ratio)
-        #         box_w_scores = torch.cat([output["boxes"], output["scores"].unsqueeze(1)], dim=1)
-        #         gallery_dets.append(box_w_scores.cpu().numpy())
-        #         gallery_feats.append(output["embeddings"].cpu().numpy())
+            for images, output in zip(images, outputs):
+                expand_ratio = 0
+                if expand_ratio:
+                    for idx_box, (box, image) in enumerate(zip(output["boxes"], images)):
+                        x1, y1, x2, y2 = box
+                        hei_image, wid_image = image.shape[-2:]
+                        wid, hei = (x2 - x1) / 2, (y2 - y1) / 2
+                        output["boxes"][idx_box][0] = max(0, x1 - wid * expand_ratio)
+                        output["boxes"][idx_box][1] = max(0, y1 - wid * expand_ratio)
+                        output["boxes"][idx_box][2] = min(wid_image-1, x2 + hei * expand_ratio)
+                        output["boxes"][idx_box][3] = min(hei_image-1, y2 + hei * expand_ratio)
+                box_w_scores = torch.cat([output["boxes"], output["scores"].unsqueeze(1)], dim=1)
+                gallery_dets.append(box_w_scores.cpu().numpy())
+                gallery_feats.append(output["embeddings"].cpu().numpy())
 
         # regarding query image as gallery to detect all people
         # i.e. query person + surrounding people (context information)
