@@ -12,7 +12,8 @@ tabulate
 tqdm
 yacs
 future
-tensorboard
+tensorboard>=0.2.0
+torch-tb-profiler
 fvcore
 timm
 matplotlib

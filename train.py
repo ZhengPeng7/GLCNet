@@ -88,8 +88,18 @@ def main(args):
     start_time = time.time()
     mAPs = [-1]
     for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS+1):
+        print('Epoch {}.'.format(epoch))
         train_one_epoch(cfg, model, optimizer, train_loader, device, epoch, tfboard)
         lr_scheduler.step()
+        mAP = evaluate_performance(
+            model,
+            gallery_loader,
+            query_loader,
+            device,
+            use_gt=cfg.EVAL_USE_GT,
+            use_cache=cfg.EVAL_USE_CACHE,
+            use_cbgm=cfg.EVAL_USE_CBGM,
+        )
 
         if cfg.INPUT.DATASET == 'MVN':
             eval_epoch = 5
