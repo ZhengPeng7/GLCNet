@@ -9,13 +9,13 @@ class ContextExtractor1(nn.Module):
         super().__init__()
         self.convs = nn.Sequential(
             nn.Conv2d(in_channels, 256, 3, 1, 1),
-            # nn.BatchNorm2d(256),
+            nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
             nn.Conv2d(256, 256, 3, 1, 1),
-            # nn.BatchNorm2d(256),
+            nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
             nn.Conv2d(256, 1, 3, 1, 1),
-            # nn.BatchNorm2d(1),
+            nn.BatchNorm2d(1),
             nn.ReLU(inplace=True),
             nn.Sigmoid()
         )
