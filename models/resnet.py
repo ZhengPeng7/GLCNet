@@ -58,9 +58,9 @@ def build_resnet50(pretrained=True):
     return Backbone(bb_model), Res4Head(bb_model)
 
 
-def build_resnet50_layer4():
+def build_resnet50_layer4(pretrained=True):
     resnet.model_urls["resnet50"] = "https://download.pytorch.org/models/resnet50-f46c3f97.pth"
-    resnet50_layer4 = resnet.resnet50(pretrained=True).layer4
+    resnet50_layer4 = resnet.resnet50(pretrained=pretrained).layer4
     return resnet50_layer4
 
 
@@ -72,9 +72,10 @@ class MultiPartSpliter(nn.Module):
             # BasicDecBlk keeps the resolution.
             inter_channels = 512
             out_channel_mps_blk = 2048
-            block_1 = BasicDecBlk(in_channels=1024, out_channels=inter_channels if out_channels else out_channel_mps_blk)
-            block_2 = BasicDecBlk(in_channels=1024, out_channels=inter_channels if out_channels else out_channel_mps_blk)
-            block_3 = BasicDecBlk(in_channels=1024, out_channels=inter_channels if out_channels else out_channel_mps_blk)
+            num_blk = 4
+            block_1 = nn.Sequential(*[BasicDecBlk(in_channels=1024, out_channels=inter_channels if out_channels else out_channel_mps_blk) for _ in range(num_blk)])
+            block_2 = nn.Sequential(*[BasicDecBlk(in_channels=1024, out_channels=inter_channels if out_channels else out_channel_mps_blk) for _ in range(num_blk)])
+            block_3 = nn.Sequential(*[BasicDecBlk(in_channels=1024, out_channels=inter_channels if out_channels else out_channel_mps_blk) for _ in range(num_blk)])
             in_feat_size = (14//1, 14//1)     # shape of the output of `box_roi_pool(features, boxes, image_shapes)` in `glcnet.py`.
         elif config.mps_blk == 'resnet50_layer4':
             # resnet50_layer4 downscales hei and wid as 1/2

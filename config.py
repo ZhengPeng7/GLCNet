@@ -8,7 +8,7 @@ class Config():
     def __init__(self) -> None:
         self.multi_part_matching = True    # 1.1 min for 200 steps w/ False.
         self.mps_channels = [None, 256][0]
-        self.mps_norm_len = [384, 192][0] // (1 + 2 + 3)
+        self.mps_norm_len = [384, 192][1] // (1 + 2 + 3)
         self.mps_blk = ['BasicDecBlk', 'resnet50_layer4'][1]    # [1.3min, 1.6min] for 200 steps
         # Context Features
         self.cxt_scene_enabled = True
