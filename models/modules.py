@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torchvision.ops import deform_conv2d
 import fvcore.nn.weight_init as weight_init
 from config import Config
 
@@ -27,9 +28,6 @@ class BasicDecBlk(nn.Module):
         x = self.conv_out(x)
         x = self.bn_out(x)
         return x
-
-##################### Deformable
-from torchvision.ops import deform_conv2d
 
 
 class DeformableConv2d(nn.Module):
