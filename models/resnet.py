@@ -73,9 +73,9 @@ class MultiPartSpliter(nn.Module):
             inter_channels = 512
             out_channel_mps_blk = 2048
             num_blk = 4
-            block_1 = nn.Sequential(*[BasicDecBlk(in_channels=1024 if not idx_blk else inter_channels, out_channels=inter_channels if out_channels else out_channel_mps_blk) for idx_blk in range(num_blk)])
-            block_2 = nn.Sequential(*[BasicDecBlk(in_channels=1024 if not idx_blk else inter_channels, out_channels=inter_channels if out_channels else out_channel_mps_blk) for idx_blk in range(num_blk)])
-            block_3 = nn.Sequential(*[BasicDecBlk(in_channels=1024 if not idx_blk else inter_channels, out_channels=inter_channels if out_channels else out_channel_mps_blk) for idx_blk in range(num_blk)])
+            block_1 = nn.Sequential(*[BasicDecBlk(in_channels=1024 if not idx_blk else inter_channels, out_channels=(inter_channels if out_channels else out_channel_mps_blk) if idx_blk == num_blk - 1 else inter_channels) for idx_blk in range(num_blk)])
+            block_2 = nn.Sequential(*[BasicDecBlk(in_channels=1024 if not idx_blk else inter_channels, out_channels=(inter_channels if out_channels else out_channel_mps_blk) if idx_blk == num_blk - 1 else inter_channels) for idx_blk in range(num_blk)])
+            block_3 = nn.Sequential(*[BasicDecBlk(in_channels=1024 if not idx_blk else inter_channels, out_channels=(inter_channels if out_channels else out_channel_mps_blk) if idx_blk == num_blk - 1 else inter_channels) for idx_blk in range(num_blk)])
             in_feat_size = (14//1, 14//1)     # shape of the output of `box_roi_pool(features, boxes, image_shapes)` in `glcnet.py`.
         elif config.mps_blk == 'resnet50_layer4':
             # resnet50_layer4 downscales hei and wid as 1/2
