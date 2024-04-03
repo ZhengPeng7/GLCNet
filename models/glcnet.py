@@ -430,15 +430,17 @@ class SeqRoIHeads(RoIHeads):
                 if config.cxt and True:
                     # Whether use the contexts to enhance the features of surrounding persons.
                     if config.cxt_scene_enabled:
+                        cxt_scene_proposalNum = torch.mean(self.x_embedding_head['cxt_scene'], dim=0).unsqueeze(0)
                         if config.nae_multi:
-                            gt_box_features['cxt_scene'] = self.x_embedding_head['cxt_scene']
+                            gt_box_features['cxt_scene'] = cxt_scene_proposalNum
                         else:
-                            gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], self.x_embedding_head['cxt_scene']], 1)
+                            gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], cxt_scene_proposalNum], 1)
                     if config.cxt_group_enabled:
+                        cxt_group_proposalNum = torch.mean(self.x_embedding_head['cxt_group'], dim=0).unsqueeze(0)
                         if config.nae_multi:
-                            gt_box_features['cxt_group'] = self.x_embedding_head['cxt_group']
+                            gt_box_features['cxt_group'] = cxt_group_proposalNum
                         else:
-                            gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], self.x_embedding_head['cxt_group']], 1)
+                            gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], cxt_group_proposalNum], 1)
                 if not config.nae_multi:
                     if self.fuser_att:
                         gt_box_features["feat_res4"] = self.fuser_att(gt_box_features["feat_res4"])
