@@ -416,38 +416,38 @@ class SeqRoIHeads(RoIHeads):
                 x_embedding_head = OrderedDict([['feat_res4', box_features["feat_res4"]]])
             self.x_embedding_head = x_embedding_head
 
-        if not self.training and query_img_as_gallery:
-            # group context of query: When regarding the query image as gallery, GT boxes may be excluded from detected boxes. To avoid this, we compulsorily include GT in the detection results.
-            # Additionally, CWS should be disabled as the confidences of these people in query image are 1.
-            cws = False
-            gt_boxes = [targets[0]["boxes"]]
-            gt_box_features = self.box_roi_pool(features, gt_boxes, image_shapes)
-            if config.multi_part_matching:
-                mps_feat_dict = self.mps(gt_box_features)
-            gt_box_features = self.reid_head(gt_box_features)
-            if config.multi_part_matching:
-                gt_box_features.update(mps_feat_dict)
-            if config.cxt and True:
-                # Whether use the contexts to enhance the features of surrounding persons.
-                if config.cxt_scene_enabled:
-                    if config.nae_multi:
-                        gt_box_features['cxt_scene'] = self.x_embedding_head['cxt_scene']
-                    else:
-                        gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], self.x_embedding_head['cxt_scene']], 1)
-                if config.cxt_group_enabled:
-                    if config.nae_multi:
-                        gt_box_features['cxt_group'] = self.x_embedding_head['cxt_group']
-                    else:
-                        gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], self.x_embedding_head['cxt_group']], 1)
-            if not config.nae_multi:
-                if self.fuser_att:
-                    gt_box_features["feat_res4"] = self.fuser_att(gt_box_features["feat_res4"])
-                if self.fuser_mlp:
-                    gt_box_features["feat_res4"] = self.fuser_mlp(gt_box_features["feat_res4"].squeeze(-1).squeeze(-1)).unsqueeze(-1).unsqueeze(-1)
-                elif self.fuser_conv:
-                    gt_box_features["feat_res4"] = self.fuser_conv(gt_box_features["feat_res4"].squeeze(-1)).unsqueeze(-1)
-            embeddings, _ = self.embedding_head(gt_box_features if config.nae_mix_res3 or config.nae_multi else OrderedDict([['feat_res4', gt_box_features["feat_res4"]]]))
-            gt_det = {"boxes": targets[0]["boxes"], "embeddings": embeddings}
+            if not self.training and query_img_as_gallery:
+                # group context of query: When regarding the query image as gallery, GT boxes may be excluded from detected boxes. To avoid this, we compulsorily include GT in the detection results.
+                # Additionally, CWS should be disabled as the confidences of these people in query image are 1.
+                cws = False
+                gt_boxes = [targets[0]["boxes"]]
+                gt_box_features = self.box_roi_pool(features, gt_boxes, image_shapes)
+                if config.multi_part_matching:
+                    mps_feat_dict = self.mps(gt_box_features)
+                gt_box_features = self.reid_head(gt_box_features)
+                if config.multi_part_matching:
+                    gt_box_features.update(mps_feat_dict)
+                if config.cxt and True:
+                    # Whether use the contexts to enhance the features of surrounding persons.
+                    if config.cxt_scene_enabled:
+                        if config.nae_multi:
+                            gt_box_features['cxt_scene'] = self.x_embedding_head['cxt_scene']
+                        else:
+                            gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], self.x_embedding_head['cxt_scene']], 1)
+                    if config.cxt_group_enabled:
+                        if config.nae_multi:
+                            gt_box_features['cxt_group'] = self.x_embedding_head['cxt_group']
+                        else:
+                            gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], self.x_embedding_head['cxt_group']], 1)
+                if not config.nae_multi:
+                    if self.fuser_att:
+                        gt_box_features["feat_res4"] = self.fuser_att(gt_box_features["feat_res4"])
+                    if self.fuser_mlp:
+                        gt_box_features["feat_res4"] = self.fuser_mlp(gt_box_features["feat_res4"].squeeze(-1).squeeze(-1)).unsqueeze(-1).unsqueeze(-1)
+                    elif self.fuser_conv:
+                        gt_box_features["feat_res4"] = self.fuser_conv(gt_box_features["feat_res4"].squeeze(-1)).unsqueeze(-1)
+                embeddings, _ = self.embedding_head(gt_box_features if config.nae_mix_res3 or config.nae_multi else OrderedDict([['feat_res4', gt_box_features["feat_res4"]]]))
+                gt_det = {"boxes": targets[0]["boxes"], "embeddings": embeddings}
 
             box_embeddings, box_cls_scores = self.embedding_head(x_embedding_head)
             if box_cls_scores.dim() == 0:
