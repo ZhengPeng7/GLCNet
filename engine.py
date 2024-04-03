@@ -131,23 +131,24 @@ def evaluate_performance(
         # regarding query image as gallery to detect all people
         # i.e. query person + surrounding people (context information)
         query_dets, query_feats = [], []
-        print('Extracting query context ...')
-        # for images, targets in tqdm(query_loader, ncols=0):
-        for images, targets in query_loader:
-            images, targets = to_device(images, targets, device)
-            # targets will be modified in the model, so deepcopy it
-            outputs = model(images, deepcopy(targets), query_img_as_gallery=True)
+        if use_cbgm:
+            print('Extracting query context ...')
+            # for images, targets in tqdm(query_loader, ncols=0):
+            for images, targets in query_loader:
+                images, targets = to_device(images, targets, device)
+                # targets will be modified in the model, so deepcopy it
+                outputs = model(images, deepcopy(targets), query_img_as_gallery=True)
 
-            # consistency check
-            gt_box = targets[0]["boxes"].squeeze()
-            assert (
-                gt_box - outputs[0]["boxes"][0]
-            ).sum() <= 0.001, "GT box must be the first one in the detected boxes of query image"
+                # consistency check
+                gt_box = targets[0]["boxes"].squeeze()
+                assert (
+                    gt_box - outputs[0]["boxes"][0]
+                ).sum() <= 0.001, "GT box must be the first one in the detected boxes of query image"
 
-            for output in outputs:
-                box_w_scores = torch.cat([output["boxes"], output["scores"].unsqueeze(1)], dim=1)
-                query_dets.append(box_w_scores.cpu().numpy())
-                query_feats.append(output["embeddings"].cpu().numpy())
+                for output in outputs:
+                    box_w_scores = torch.cat([output["boxes"], output["scores"].unsqueeze(1)], dim=1)
+                    query_dets.append(box_w_scores.cpu().numpy())
+                    query_feats.append(output["embeddings"].cpu().numpy())
 
         # extract the features of query boxes
         query_box_feats = []
@@ -155,7 +156,7 @@ def evaluate_performance(
         # for images, targets in tqdm(query_loader, ncols=0):
         for images, targets in query_loader:
             images, targets = to_device(images, targets, device)
-            embeddings = model(images, targets)
+            embeddings = model(images, targets, query_img_as_gallery=False)
             assert len(embeddings) == 1, "batch size in test phase should be 1"
             query_box_feats.append(embeddings[0].cpu().numpy())
 

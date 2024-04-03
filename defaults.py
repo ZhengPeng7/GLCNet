@@ -128,7 +128,7 @@ _C.EVAL_USE_GT = False
 # Fast evaluation with cached features
 _C.EVAL_USE_CACHE = False
 # Evaluation with Context Bipartite Graph Matching (CBGM) algorithm
-_C.EVAL_USE_CBGM = True
+_C.EVAL_USE_CBGM = False
 
 # -------------------------------------------------------- #
 #                           Miscs                          #

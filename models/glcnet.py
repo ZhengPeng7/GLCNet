@@ -183,8 +183,14 @@ class GLCNet(nn.Module):
 
         if query_img_as_gallery:
             assert targets is not None
+        
+        proposals, _ = self.rpn(images, features, targets)
+        detections, _ = self.roi_heads(
+            features, proposals, images.image_sizes, targets, query_img_as_gallery
+        )
 
         if targets is not None and not query_img_as_gallery:
+            # with targets, inference on query boxes only.
             # query
             boxes = [t["boxes"] for t in targets]
             box_features = self.roi_heads.box_roi_pool(features, boxes, images.image_sizes)
@@ -194,33 +200,14 @@ class GLCNet(nn.Module):
             if config.multi_part_matching:
                 box_features.update(mps_feat_dict)
             if config.cxt:
-                feat_res4_ori = box_features['feat_res4']
                 if config.cxt_scene_enabled:
-                    cxt_scene = self.cxt_scene_extractor(features['feat_res3']).squeeze(-1)
-                    cxt_scene_proposalNum = torch.cat([
-                        cxt_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
-                        ], dim=0)
+                    cxt_scene_proposalNum = torch.mean(self.roi_heads.x_embedding_head['cxt_scene'], dim=0).unsqueeze(0)
                     if config.nae_multi:
-                        box_features['cxt_scene'] = cxt_scene_proposalNum.unsqueeze(-1)
+                        box_features['cxt_scene'] = cxt_scene_proposalNum
                     else:
-                        box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_scene_proposalNum.unsqueeze(-1)], 1)
+                        box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_scene_proposalNum], 1)
                 if config.cxt_group_enabled:
-                    feat_res4_per_image = []
-                    num_box = 0
-                    for box in boxes:
-                        feat_res4_per_image.append(feat_res4_ori[num_box:num_box+box.shape[0]])
-                        num_box += box.shape[0]
-                    cxt_group_per_image = []
-                    for feat_res4, whether_box_has_person_lst in zip(feat_res4_per_image, [True]):
-                        feat_persons = feat_res4[whether_box_has_person_lst]
-                        feat_persons_squeezed = torch.mean(feat_persons, dim=0)
-                        # feat_persons_squeezed = feat_persons_squeezed.unsqueeze(0)
-                        cxt_group_per_image.append(feat_persons_squeezed)
-                    cxt_group_per_image = torch.cat(cxt_group_per_image, dim=0)
-                    cxt_group_per_image = self.cxt_group_extractor(cxt_group_per_image)
-                    cxt_group_proposalNum = torch.cat([
-                        cxt_group_per_image[idx_bs].repeat(box.shape[0], 1, 1, 1) for idx_bs, box in enumerate(boxes)
-                    ], dim=0)
+                    cxt_group_proposalNum = torch.mean(self.roi_heads.x_embedding_head['cxt_group'], dim=0).unsqueeze(0)
                     if config.nae_multi:
                         box_features['cxt_group'] = cxt_group_proposalNum
                     else:
@@ -235,11 +222,9 @@ class GLCNet(nn.Module):
             embeddings, _ = self.roi_heads.embedding_head(box_features if config.nae_mix_res3 or config.nae_multi else OrderedDict([['feat_res4', box_features["feat_res4"]]]))
             return embeddings.split(1, 0)
         else:
+            # if targets is None:   1. without targets, extracting gallery.
+            # else:                 2. with targets, inference on query and its surrounding persons.
             # gallery
-            proposals, _ = self.rpn(images, features, targets)
-            detections, _ = self.roi_heads(
-                features, proposals, images.image_sizes, targets, query_img_as_gallery
-            )
             detections = self.transform.postprocess(
                 detections, images.image_sizes, original_image_sizes
             )
@@ -367,15 +352,73 @@ class SeqRoIHeads(RoIHeads):
                 else:
                     whether_box_has_person_lst = box_pid_label > 0
                 whether_box_has_person_lst_per_image.append(whether_box_has_person_lst)
-        
 
         cws = True
         gt_det = None
+
+        if boxes[0].shape[0] > 0:
+            # --------------------- Baseline head -------------------- #
+            # Basic forward process and context extraction.
+            box_features = self.box_roi_pool(features, boxes, image_shapes)
+            if config.multi_part_matching:
+                # features.shape == batch_size, 1024, 58, 94
+                mps_feat_dict = self.mps(box_features)
+            box_features = self.reid_head(box_features)
+            if config.multi_part_matching:
+                box_features.update(mps_feat_dict)
+            box_regs = self.box_predictor(box_features["feat_res4"])
+            if config.cxt:
+                feat_res4_ori = box_features['feat_res4']
+                if config.cxt_scene_enabled:
+                    cxt_scene = self.cxt_scene_extractor(features['feat_res3']).squeeze(-1)
+                    cxt_scene_proposalNum = torch.cat([
+                        cxt_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
+                    ], dim=0)   # I repeat the scene feature for box times to add the scene context to each box -- Equip all objects in this image with the scene context here.
+                    if config.nae_multi:
+                        box_features['cxt_scene'] = cxt_scene_proposalNum.unsqueeze(-1)
+                    else:
+                        box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_scene_proposalNum.unsqueeze(-1)], 1)
+                if config.cxt_group_enabled:
+                    # We collect the features of detected boxes in each image, which are used as the group context to the persons in this image.
+                    feat_res4_per_image = []
+                    num_box = 0
+                    for box in boxes:
+                        # Divide the features in a batch into features in each image.
+                        feat_res4_per_image.append(feat_res4_ori[num_box:num_box+box.shape[0]])
+                        num_box += box.shape[0]
+                    cxt_group_per_image = []
+                    for feat_res4, whether_box_has_person_lst in zip(feat_res4_per_image, whether_box_has_person_lst_per_image):
+                        # Select the features of boxes which have persons. Each image has 128 boxes.
+                        # cxt_group_per_image.append(torch.sum(feat_res4 * whether_box_has_person_lst, dim=0).unsqueeze(0) / (torch.sum(whether_box_has_person_lst) + 1e-5))
+                        feat_persons = feat_res4[whether_box_has_person_lst]
+                        feat_persons_squeezed = torch.mean(feat_persons, dim=0)
+                        feat_persons_squeezed = feat_persons_squeezed.unsqueeze(0)
+                        cxt_group_per_image.append(feat_persons_squeezed)
+                    cxt_group_per_image = torch.cat(cxt_group_per_image, dim=0)
+                    cxt_group_per_image = self.cxt_group_extractor(cxt_group_per_image)
+                    cxt_group_proposalNum = torch.cat([
+                        cxt_group_per_image[idx_bs].repeat(box.shape[0], 1, 1, 1) for idx_bs, box in enumerate(boxes)
+                    ], dim=0)
+                    if config.nae_multi:
+                        box_features['cxt_group'] = cxt_group_proposalNum
+                    else:
+                        box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_group_proposalNum], 1)
+                if not config.nae_multi:
+                    if self.fuser_att:
+                        box_features["feat_res4"] = self.fuser_att(box_features["feat_res4"])
+                    if self.fuser_mlp:
+                        box_features["feat_res4"] = self.fuser_mlp(box_features["feat_res4"].squeeze(-1).squeeze(-1)).unsqueeze(-1).unsqueeze(-1)
+                    elif self.fuser_conv:
+                        box_features["feat_res4"] = self.fuser_conv(box_features["feat_res4"].squeeze(-1)).unsqueeze(-1)
+            if config.nae_mix_res3 or config.nae_multi:
+                x_embedding_head = box_features
+            else:
+                x_embedding_head = OrderedDict([['feat_res4', box_features["feat_res4"]]])
+            self.x_embedding_head = x_embedding_head
+
         if not self.training and query_img_as_gallery:
-            # When regarding the query image as gallery, GT boxes may be excluded
-            # from detected boxes. To avoid this, we compulsorily include GT in the
-            # detection results. Additionally, CWS should be disabled as the
-            # confidences of these people in query image are 1
+            # group context of query: When regarding the query image as gallery, GT boxes may be excluded from detected boxes. To avoid this, we compulsorily include GT in the detection results.
+            # Additionally, CWS should be disabled as the confidences of these people in query image are 1.
             cws = False
             gt_boxes = [targets[0]["boxes"]]
             gt_box_features = self.box_roi_pool(features, gt_boxes, image_shapes)
@@ -384,36 +427,18 @@ class SeqRoIHeads(RoIHeads):
             gt_box_features = self.reid_head(gt_box_features)
             if config.multi_part_matching:
                 gt_box_features.update(mps_feat_dict)
-            feat_res4_ori = gt_box_features['feat_res4']
-            if config.cxt_scene_enabled:
-                cxt_scene = self.cxt_scene_extractor(features['feat_res3']).squeeze(-1)
-                cxt_scene_proposalNum = torch.cat([
-                    cxt_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(gt_boxes)
-                    ], dim=0)
-                if config.nae_multi:
-                    gt_box_features['cxt_scene'] = cxt_scene_proposalNum.unsqueeze(-1)
-                else:
-                    gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], cxt_scene_proposalNum.unsqueeze(-1)], 1)
-            if config.cxt_group_enabled:
-                feat_res4_per_image = []
-                num_box = 0
-                for box in boxes:
-                    feat_res4_per_image.append(feat_res4_ori[num_box:num_box+box.shape[0]])
-                    num_box += box.shape[0]
-                cxt_group_per_image = []
-                for feat_res4, whether_box_has_person_lst in zip(feat_res4_per_image, [True]):
-                    feat_persons = feat_res4[whether_box_has_person_lst]
-                    feat_persons_squeezed = torch.mean(feat_persons, dim=0)
-                    cxt_group_per_image.append(feat_persons_squeezed)
-                cxt_group_per_image = torch.cat(cxt_group_per_image, dim=0)
-                cxt_group_per_image = self.cxt_group_extractor(cxt_group_per_image)
-                cxt_group_proposalNum = torch.cat([
-                    cxt_group_per_image[idx_bs].repeat(box.shape[0], 1, 1, 1) for idx_bs, box in enumerate(gt_boxes)
-                ], dim=0)
-                if config.nae_multi:
-                    gt_box_features['cxt_group'] = cxt_group_proposalNum
-                else:
-                    gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], cxt_group_proposalNum], 1)
+            if config.cxt and True:
+                # Whether use the contexts to enhance the features of surrounding persons.
+                if config.cxt_scene_enabled:
+                    if config.nae_multi:
+                        gt_box_features['cxt_scene'] = self.x_embedding_head['cxt_scene']
+                    else:
+                        gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], self.x_embedding_head['cxt_scene']], 1)
+                if config.cxt_group_enabled:
+                    if config.nae_multi:
+                        gt_box_features['cxt_group'] = self.x_embedding_head['cxt_group']
+                    else:
+                        gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], self.x_embedding_head['cxt_group']], 1)
             if not config.nae_multi:
                 if self.fuser_att:
                     gt_box_features["feat_res4"] = self.fuser_att(gt_box_features["feat_res4"])
@@ -424,74 +449,35 @@ class SeqRoIHeads(RoIHeads):
             embeddings, _ = self.embedding_head(gt_box_features if config.nae_mix_res3 or config.nae_multi else OrderedDict([['feat_res4', gt_box_features["feat_res4"]]]))
             gt_det = {"boxes": targets[0]["boxes"], "embeddings": embeddings}
 
-        # no detection predicted by Faster R-CNN head in test phase
-        if boxes[0].shape[0] == 0:
+            box_embeddings, box_cls_scores = self.embedding_head(x_embedding_head)
+            if box_cls_scores.dim() == 0:
+                box_cls_scores = box_cls_scores.unsqueeze(0)
+        else:
+            if not self.training and query_img_as_gallery:
+                cws = False
+                gt_boxes = [targets[0]["boxes"]]
+                gt_box_features = self.box_roi_pool(features, gt_boxes, image_shapes)
+                if config.multi_part_matching:
+                    mps_feat_dict = self.mps(gt_box_features)
+                gt_box_features = self.reid_head(gt_box_features)
+                if config.multi_part_matching:
+                    gt_box_features.update(mps_feat_dict)
+                if not config.nae_multi:
+                    if self.fuser_att:
+                        gt_box_features["feat_res4"] = self.fuser_att(gt_box_features["feat_res4"])
+                    if self.fuser_mlp:
+                        gt_box_features["feat_res4"] = self.fuser_mlp(gt_box_features["feat_res4"].squeeze(-1).squeeze(-1)).unsqueeze(-1).unsqueeze(-1)
+                    elif self.fuser_conv:
+                        gt_box_features["feat_res4"] = self.fuser_conv(gt_box_features["feat_res4"].squeeze(-1)).unsqueeze(-1)
+                embeddings, _ = self.embedding_head(gt_box_features if config.nae_mix_res3 or config.nae_multi else OrderedDict([['feat_res4', gt_box_features["feat_res4"]]]))
+                gt_det = {"boxes": targets[0]["boxes"], "embeddings": embeddings}
+            # no detection predicted by Faster R-CNN head in test phase
             assert not self.training
             boxes = gt_det["boxes"] if gt_det else torch.zeros(0, 4)
             labels = torch.ones(1).type_as(boxes) if gt_det else torch.zeros(0)
             scores = torch.ones(1).type_as(boxes) if gt_det else torch.zeros(0)
             embeddings = gt_det["embeddings"] if gt_det else torch.zeros(0, sum(config.nae_dims))
             return [dict(boxes=boxes, labels=labels, scores=scores, embeddings=embeddings)], []
-
-        # --------------------- Baseline head -------------------- #
-        box_features = self.box_roi_pool(features, boxes, image_shapes)
-        if config.multi_part_matching:
-            # features.shape == batch_size, 1024, 58, 94
-            mps_feat_dict = self.mps(box_features)
-        box_features = self.reid_head(box_features)
-        if config.multi_part_matching:
-            box_features.update(mps_feat_dict)
-        box_regs = self.box_predictor(box_features["feat_res4"])
-        if config.cxt:
-            feat_res4_ori = box_features['feat_res4']
-            if config.cxt_scene_enabled:
-                cxt_scene = self.cxt_scene_extractor(features['feat_res3']).squeeze(-1)
-                cxt_scene_proposalNum = torch.cat([
-                    cxt_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
-                ], dim=0)   # I repeat the scene feature for box times to add the scene context to each box -- Equip all objects in this image with the scene context here.
-                if config.nae_multi:
-                    box_features['cxt_scene'] = cxt_scene_proposalNum.unsqueeze(-1)
-                else:
-                    box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_scene_proposalNum.unsqueeze(-1)], 1)
-            if config.cxt_group_enabled:
-                # We collect the features of detected boxes in each image, which are used as the group context to the persons in this image.
-                feat_res4_per_image = []
-                num_box = 0
-                for box in boxes:
-                    # Divide the features in a batch into features in each image.
-                    feat_res4_per_image.append(feat_res4_ori[num_box:num_box+box.shape[0]])
-                    num_box += box.shape[0]
-                cxt_group_per_image = []
-                for feat_res4, whether_box_has_person_lst in zip(feat_res4_per_image, whether_box_has_person_lst_per_image):
-                    # Select the features of boxes which have persons. Each image has 128 boxes.
-                    # cxt_group_per_image.append(torch.sum(feat_res4 * whether_box_has_person_lst, dim=0).unsqueeze(0) / (torch.sum(whether_box_has_person_lst) + 1e-5))
-                    feat_persons = feat_res4[whether_box_has_person_lst]
-                    feat_persons_squeezed = torch.mean(feat_persons, dim=0)
-                    feat_persons_squeezed = feat_persons_squeezed.unsqueeze(0)
-                    cxt_group_per_image.append(feat_persons_squeezed)
-                cxt_group_per_image = torch.cat(cxt_group_per_image, dim=0)
-                cxt_group_per_image = self.cxt_group_extractor(cxt_group_per_image)
-                cxt_group_proposalNum = torch.cat([
-                    cxt_group_per_image[idx_bs].repeat(box.shape[0], 1, 1, 1) for idx_bs, box in enumerate(boxes)
-                ], dim=0)
-                if config.nae_multi:
-                    box_features['cxt_group'] = cxt_group_proposalNum
-                else:
-                    box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_group_proposalNum], 1)
-            if not config.nae_multi:
-                if self.fuser_att:
-                    box_features["feat_res4"] = self.fuser_att(box_features["feat_res4"])
-                if self.fuser_mlp:
-                    box_features["feat_res4"] = self.fuser_mlp(box_features["feat_res4"].squeeze(-1).squeeze(-1)).unsqueeze(-1).unsqueeze(-1)
-                elif self.fuser_conv:
-                    box_features["feat_res4"] = self.fuser_conv(box_features["feat_res4"].squeeze(-1)).unsqueeze(-1)
-        if config.nae_mix_res3 or config.nae_multi:
-            x_embedding_head = box_features
-        else:
-            x_embedding_head = OrderedDict([['feat_res4', box_features["feat_res4"]]])
-        box_embeddings, box_cls_scores = self.embedding_head(x_embedding_head)
-        if box_cls_scores.dim() == 0:
-            box_cls_scores = box_cls_scores.unsqueeze(0)
 
         result, losses = [], {}
         if self.training:
