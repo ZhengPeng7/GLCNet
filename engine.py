@@ -1,5 +1,6 @@
 import math
 import sys
+import datetime
 from copy import deepcopy
 
 import torch
@@ -127,6 +128,8 @@ def evaluate_performance(
                 box_w_scores = torch.cat([output["boxes"], output["scores"].unsqueeze(1)], dim=1)
                 gallery_dets.append(box_w_scores.cpu().numpy())
                 gallery_feats.append(output["embeddings"].cpu().numpy())
+        time_now = str(datetime.datetime.now()); time_now = time_now.rstrip('.' + time_now.split('.')[-1])
+        print('\ttime_now: ', time_now)
 
         # regarding query image as gallery to detect all people
         # i.e. query person + surrounding people (context information)
@@ -149,6 +152,8 @@ def evaluate_performance(
                     box_w_scores = torch.cat([output["boxes"], output["scores"].unsqueeze(1)], dim=1)
                     query_dets.append(box_w_scores.cpu().numpy())
                     query_feats.append(output["embeddings"].cpu().numpy())
+            time_now = str(datetime.datetime.now()); time_now = time_now.rstrip('.' + time_now.split('.')[-1])
+            print('\ttime_now: ', time_now)
 
         # extract the features of query boxes
         query_box_feats = []
@@ -159,6 +164,8 @@ def evaluate_performance(
             embeddings = model(images, targets, query_img_as_gallery=False)
             assert len(embeddings) == 1, "batch size in test phase should be 1"
             query_box_feats.append(embeddings[0].cpu().numpy())
+        time_now = str(datetime.datetime.now()); time_now = time_now.rstrip('.' + time_now.split('.')[-1])
+        print('\ttime_now: ', time_now)
 
         mkdir("data/eval_cache")
         save_dict = {

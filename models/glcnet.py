@@ -427,8 +427,8 @@ class SeqRoIHeads(RoIHeads):
                 gt_box_features = self.reid_head(gt_box_features)
                 if config.multi_part_matching:
                     gt_box_features.update(mps_feat_dict)
-                if config.cxt and True:
-                    # Whether use the contexts to enhance the features of surrounding persons.
+                if config.cxt:
+                    # Use the contexts to enhance the features of surrounding persons.
                     if config.cxt_scene_enabled:
                         cxt_scene_proposalNum = torch.mean(self.x_embedding_head['cxt_scene'], dim=0).unsqueeze(0)
                         if config.nae_multi:
