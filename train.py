@@ -100,7 +100,7 @@ def main(args):
             epoch >= cfg.SOLVER.MAX_EPOCHS or
             (
                 epoch % eval_epoch == 0 and
-                epoch > max(cfg.SOLVER.LR_DECAY_MILESTONES[-1], cfg.SOLVER.MAX_EPOCHS-3-3)
+                epoch > max(cfg.SOLVER.LR_DECAY_MILESTONES[-1], cfg.SOLVER.MAX_EPOCHS-3)
             )
         ):
             mAP = evaluate_performance(
