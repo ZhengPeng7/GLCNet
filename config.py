@@ -77,6 +77,6 @@ class Config():
 
 class ConfigMVN():
     def __init__(self) -> None:
-        self.gallery_size = 2000
-        self.train_appN = 10
+        self.gallery_size = [2000, 4000, 10000][0]
+        self.train_appN = [10, 30, 50, 70, 100][0]
 
