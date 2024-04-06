@@ -23,7 +23,7 @@ def to_device(images, targets, device):
     return images, targets
 
 
-def train_one_epoch(cfg, model, optimizer, data_loader, device, epoch, tfboard=None):
+def train_one_epoch(cfg, model, optimizer, data_loader, device, epoch, lr_scheduler, tfboard=None):
     model.train()
     metric_logger = MetricLogger(delimiter="  ")
     metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
@@ -43,6 +43,7 @@ def train_one_epoch(cfg, model, optimizer, data_loader, device, epoch, tfboard=N
 
         loss_dict = model(images, targets)
         if config.ignore_det_last_epochs and epoch > (cfg.SOLVER.LR_DECAY_MILESTONES[0] + 2):
+            # Optimization on re-id only.
             losses = sum(loss_value for loss_name, loss_value in loss_dict.items() if loss_name == 'loss_box_reid')
         losses = sum(loss_value for _, loss_value in loss_dict.items())
 
@@ -66,7 +67,7 @@ def train_one_epoch(cfg, model, optimizer, data_loader, device, epoch, tfboard=N
             warmup_scheduler.step()
 
         metric_logger.update(loss=loss_value, **loss_dict_reduced)
-        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+        metric_logger.update(lr=lr_scheduler.get_last_lr()[-1])
         if tfboard:
             iter = epoch * len(data_loader) + i
             for k, v in loss_dict_reduced.items():

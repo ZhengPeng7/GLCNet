@@ -89,7 +89,7 @@ def main(args):
     mAPs = [0]
     for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS+1):
         print('Epoch {}:'.format(epoch))
-        train_one_epoch(cfg, model, optimizer, train_loader, device, epoch, tfboard)
+        train_one_epoch(cfg, model, optimizer, train_loader, device, epoch, lr_scheduler, tfboard)
         lr_scheduler.step()
 
         if cfg.INPUT.DATASET == 'MVN':
