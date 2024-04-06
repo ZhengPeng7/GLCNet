@@ -92,15 +92,15 @@ def main(args):
         train_one_epoch(cfg, model, optimizer, train_loader, device, epoch, lr_scheduler, tfboard)
         lr_scheduler.step()
 
-        if cfg.INPUT.DATASET == 'MVN':
-            eval_epoch = 5
-        else:
-            eval_epoch = cfg.EVAL_PERIOD
         if(
             epoch >= cfg.SOLVER.MAX_EPOCHS or
             (
-                epoch % eval_epoch == 0 and
+                epoch % cfg.EVAL_PERIOD == 0 and
                 epoch > max(cfg.SOLVER.LR_DECAY_MILESTONES[-1], cfg.SOLVER.MAX_EPOCHS-3)
+            ) or
+            (
+                'MVN' in cfg.INPUT.DATASET and
+                epoch % 5 == 0
             )
         ):
             mAP = evaluate_performance(
