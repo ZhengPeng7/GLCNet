@@ -80,7 +80,7 @@ class MultiPartSpliter(nn.Module):
         elif config.mps_blk == 'resnet50_layer4':
             # resnet50_layer4 downscales hei and wid as 1/2
             inter_channels = 2048
-            block_1 = build_resnet50_layer4()   # out_channels of resnet50_layer4 is 2048.
+            block_1 = build_resnet50_layer4()   # (in_channels, out_channels) of resnet50_layer4 are (1024, 2048).
             block_2 = build_resnet50_layer4()
             block_3 = build_resnet50_layer4()
             in_feat_size = (14//2, 14//2)

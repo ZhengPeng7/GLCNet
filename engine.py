@@ -216,7 +216,9 @@ def evaluate_performance(
                 gallery_size=ConfigMVN().gallery_size,
             )
         mAP = ret["mAP"]
+        top1 = ret["accs"][0]
     except:
         print('Empty det results. Skip this eval.')
         mAP = 0
-    return mAP
+        top1 = 0
+    return mAP, top1

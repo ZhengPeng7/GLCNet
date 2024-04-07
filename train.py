@@ -86,7 +86,7 @@ def main(args):
 
     print("Start training")
     start_time = time.time()
-    mAPs = [0]
+    mAP_top1_lst = [0]
     for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS+1):
         print('Epoch {}:'.format(epoch))
         train_one_epoch(cfg, model, optimizer, train_loader, device, epoch, lr_scheduler, tfboard)
@@ -103,7 +103,7 @@ def main(args):
                 epoch % 5 == 0
             )
         ):
-            mAP = evaluate_performance(
+            mAP, top1 = evaluate_performance(
                 model,
                 gallery_loader,
                 query_loader,
@@ -113,10 +113,10 @@ def main(args):
                 use_cbgm=cfg.EVAL_USE_CBGM,
             )
         else:
-            mAP = 0
-        mAPs.append(mAP)
-        if mAP > max(mAPs[:-1]):
-            print('Saving the best model with mAP {}...'.format(mAP))
+            mAP, top1 = 0, 0
+        mAP_top1_lst.append(mAP + top1)
+        if mAP + top1 > max(mAP_top1_lst[:-1]):
+            print('Saving the best model with mAP={:.3f}, top-1={:.3f} ...'.format(mAP, top1))
             save_on_master(
                 {
                     "model": model.state_dict(),

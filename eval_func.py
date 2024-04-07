@@ -291,7 +291,7 @@ def eval_search_cuhk(
     for i, k in enumerate(topk):
         print("  top-{:2d} = {:.2%}".format(k, accs[i]))
 
-    write_json(ret, "vis/results.json")
+    write_json(ret, "vis/cuhk-results.json")
 
     ret["mAP"] = np.mean(aps)
     ret["accs"] = accs
@@ -503,7 +503,7 @@ def eval_search_mvn(
     for i, k in enumerate(topk):
         print("  top-{:2d} = {:.2%}".format(k, accs[i]))
 
-    write_json(ret, "vis/results.json")
+    write_json(ret, "vis/mvn-results.json")
 
     ret["mAP"] = np.mean(aps)
     ret["accs"] = accs
@@ -690,7 +690,7 @@ def eval_search_prw(
     for i, k in enumerate(topk):
         print("  top-{:2d} = {:.2%}".format(k, accs[i]))
 
-    # write_json(ret, "vis/results.json")
+    write_json(ret, "vis/prw-results.json")
 
     ret["mAP"] = np.mean(aps)
     ret["accs"] = accs
