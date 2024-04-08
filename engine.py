@@ -96,7 +96,8 @@ def evaluate_performance(
         query_box_feats = eval_cache["query_box_feats"]
     else:
         gallery_dets, gallery_feats = [], []
-        print('Extracting gallery ...')
+        time_now = str(datetime.datetime.now()); time_now = time_now.rstrip('.' + time_now.split('.')[-1])
+        print('Extracting gallery at {} ...'.format(time_now))
         # for images, targets in tqdm(gallery_loader, ncols=0):
         for images, targets in gallery_loader:
             images, targets = to_device(images, targets, device)
@@ -129,14 +130,13 @@ def evaluate_performance(
                 box_w_scores = torch.cat([output["boxes"], output["scores"].unsqueeze(1)], dim=1)
                 gallery_dets.append(box_w_scores.cpu().numpy())
                 gallery_feats.append(output["embeddings"].cpu().numpy())
-        time_now = str(datetime.datetime.now()); time_now = time_now.rstrip('.' + time_now.split('.')[-1])
-        print('\ttime_now: ', time_now)
 
         # regarding query image as gallery to detect all people
         # i.e. query person + surrounding people (context information)
         query_dets, query_feats = [], []
         if use_cbgm:
-            print('Extracting query context ...')
+            time_now = str(datetime.datetime.now()); time_now = time_now.rstrip('.' + time_now.split('.')[-1])
+            print('Extracting query context at {} ...'.format(time_now))
             # for images, targets in tqdm(query_loader, ncols=0):
             for images, targets in query_loader:
                 images, targets = to_device(images, targets, device)
@@ -153,20 +153,18 @@ def evaluate_performance(
                     box_w_scores = torch.cat([output["boxes"], output["scores"].unsqueeze(1)], dim=1)
                     query_dets.append(box_w_scores.cpu().numpy())
                     query_feats.append(output["embeddings"].cpu().numpy())
-            time_now = str(datetime.datetime.now()); time_now = time_now.rstrip('.' + time_now.split('.')[-1])
-            print('\ttime_now: ', time_now)
 
         # extract the features of query boxes
         query_box_feats = []
-        print('Extracting query ...')
+        time_now = str(datetime.datetime.now()); time_now = time_now.rstrip('.' + time_now.split('.')[-1])
+        print('Extracting query at {} ...'.format(time_now))
         # for images, targets in tqdm(query_loader, ncols=0):
         for images, targets in query_loader:
             images, targets = to_device(images, targets, device)
             embeddings = model(images, targets, query_img_as_gallery=False)
             assert len(embeddings) == 1, "batch size in test phase should be 1"
             query_box_feats.append(embeddings[0].cpu().numpy())
-        time_now = str(datetime.datetime.now()); time_now = time_now.rstrip('.' + time_now.split('.')[-1])
-        print('\ttime_now: ', time_now)
+        print('Finish feature extraction on gallery+query at {} .'.format(time_now))
 
         mkdir("data/eval_cache")
         save_dict = {
