@@ -17,7 +17,7 @@ class Config():
         self.cxt = self.cxt_scene_enabled or self.cxt_group_enabled
 
         self.cxt_ext_scene = [0, 1, 2, 3, 4][1]     # [1] is the best one.
-        self.cxt_ext_group = [0, 1, 2, 3, 4][1]     # [1] is the best one.
+        self.cxt_ext_group = [0, 1, 2, 3, 4][3]     # [1] is the best one.
         self.batch_size = cfg.INPUT.BATCH_SIZE_TRAIN
         self.lr = 0.003 * (self.batch_size / 3)  # adapt the lr linearly
         self.bb = ['resnet50', 'pvtv2'][0]

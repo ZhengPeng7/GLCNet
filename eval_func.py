@@ -6,6 +6,7 @@ from sklearn.metrics import average_precision_score
 
 from utils.km import run_kuhn_munkres
 from utils.utils import write_json
+from config import ConfigMVN
 
 
 def _compute_iou(a, b):
@@ -291,7 +292,7 @@ def eval_search_cuhk(
     for i, k in enumerate(topk):
         print("  top-{:2d} = {:.2%}".format(k, accs[i]))
 
-    write_json(ret, "vis/cuhk-results.json")
+    write_json(ret, "vis/results-cuhk.json")
 
     ret["mAP"] = np.mean(aps)
     ret["accs"] = accs
@@ -503,7 +504,7 @@ def eval_search_mvn(
     for i, k in enumerate(topk):
         print("  top-{:2d} = {:.2%}".format(k, accs[i]))
 
-    write_json(ret, "vis/mvn-results.json")
+    write_json(ret, "vis/results-mvn-appN_{}-GS_{}.json".format(ConfigMVN().train_appN, ConfigMVN().gallery_size))
 
     ret["mAP"] = np.mean(aps)
     ret["accs"] = accs
@@ -690,7 +691,7 @@ def eval_search_prw(
     for i, k in enumerate(topk):
         print("  top-{:2d} = {:.2%}".format(k, accs[i]))
 
-    write_json(ret, "vis/prw-results.json")
+    # write_json(ret, "vis/prw-results.json")
 
     ret["mAP"] = np.mean(aps)
     ret["accs"] = accs
