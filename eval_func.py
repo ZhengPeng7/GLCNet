@@ -274,17 +274,20 @@ def eval_search_cuhk(
         # only record wrong results
         if int(y_true[0]):
             continue
-        # only save top-10 predictions
-        for k in range(10):
-            new_entry["gallery"].append(
-                {
-                    "img": str(imgs[inds[k]]),
-                    "roi": list(map(float, list(rois[inds[k]]))),
-                    "score": float(y_score[k]),
-                    "correct": int(y_true[k]),
-                }
-            )
-        ret["results"].append(new_entry)
+        save_N = 100000     # CUHK-SYSU is okay to save all detected targets.
+        if i < save_N:
+            # only save top-N predictions (more coverage of detected targets) in first save_N queries (avoid the result file is too large to save in CUHK-SYSU).
+            topN = [10, len(imgs)][-1]
+            for k in range(topN):
+                new_entry["gallery"].append(
+                    {
+                        "img": str(imgs[inds[k]]),
+                        "roi": list(map(float, list(rois[inds[k]]))),
+                        "score": round(float(y_score[k]), 5),
+                        "correct": int(y_true[k]),
+                    }
+                )
+            ret["results"].append(new_entry)
 
     print("search ranking:")
     print("  mAP = {:.2%}".format(np.mean(aps)))
@@ -486,17 +489,20 @@ def eval_search_mvn(
         # only record wrong results
         if int(y_true[0]):
             continue
-        # only save top-10 predictions
-        for k in range(10):
-            new_entry["gallery"].append(
-                {
-                    "img": str(imgs[inds[k]]),
-                    "roi": list(map(float, list(rois[inds[k]]))),
-                    "score": float(y_score[k]),
-                    "correct": int(y_true[k]),
-                }
-            )
-        ret["results"].append(new_entry)
+        save_N = 100000
+        if i < save_N:
+            # only save top-N predictions (more coverage of detected targets) in first save_N queries (avoid the result file is too large to save in MovieNet-PS).
+            topN = [10, len(imgs)][-1]
+            for k in range(topN):
+                new_entry["gallery"].append(
+                    {
+                        "img": str(imgs[inds[k]]),
+                        "roi": list(map(float, list(rois[inds[k]]))),
+                        "score": round(float(y_score[k]), 5),
+                        "correct": int(y_true[k]),
+                    }
+                )
+            ret["results"].append(new_entry)
 
     print("search ranking:")
     print("  mAP = {:.2%}".format(np.mean(aps)))
@@ -570,7 +576,10 @@ def eval_search_prw(
                 gallery_imgs.append(x)
         query_gts = {}
         for item in gallery_imgs:
-            query_gts[item["img_name"]] = item["boxes"][item["pids"] == query_pid]
+            # rois of query_gt in PRW are in the format like array([[1626,  419, 1715,  629]], dtype=int32).
+            # Here, int32 is np.int32, which is unacceptable for the serilization on dictionary into json.
+            roi = item["boxes"][item["pids"] == query_pid]
+            query_gts[item["img_name"]] = list(map(float, roi)) if isinstance(roi, list) else list(map(float, roi.squeeze()))
 
         # Construct gallery set for this query
         if ignore_cam_id:
@@ -637,7 +646,7 @@ def eval_search_prw(
             # assign label for each det
             label = np.zeros(len(sim), dtype=np.int32)
             if gallery_imname in query_gts:
-                gt = query_gts[gallery_imname].ravel()
+                gt = query_gts[gallery_imname]      # gt is now a list
                 w, h = gt[2] - gt[0], gt[3] - gt[1]
                 iou_thresh = min(0.5, (w * h * 1.0) / ((w + 10) * (h + 10)))
                 inds = np.argsort(sim)[::-1]
@@ -672,17 +681,20 @@ def eval_search_prw(
             "query_gt": query_gts,
             "gallery": [],
         }
-        # only save top-10 predictions
-        for k in range(10):
-            new_entry["gallery"].append(
-                {
-                    "img": str(imgs[inds[k]]),
-                    "roi": list(map(float, list(rois[inds[k]]))),
-                    "score": float(y_score[k]),
-                    "correct": int(y_true[k]),
-                }
-            )
-        ret["results"].append(new_entry)
+        save_N = 100
+        if i < save_N:
+            # only save top-N predictions (more coverage of detected targets) in first save_N queries (avoid the result file is too large to save in PRW).
+            topN = [10, len(imgs)][-1]
+            for k in range(topN):
+                new_entry["gallery"].append(
+                    {
+                        "img": str(imgs[inds[k]]),
+                        "roi": list(map(float, list(rois[inds[k]]))),
+                        "score": round(float(y_score[k]), 5),
+                        "correct": int(y_true[k]),
+                    }
+                )
+            ret["results"].append(new_entry)
 
     print("search ranking:")
     mAP = np.mean(aps)
@@ -690,8 +702,7 @@ def eval_search_prw(
     accs = np.mean(accs, axis=0)
     for i, k in enumerate(topk):
         print("  top-{:2d} = {:.2%}".format(k, accs[i]))
-
-    # write_json(ret, "vis/prw-results.json")
+    write_json(ret, "vis/results-prw.json")
 
     ret["mAP"] = np.mean(aps)
     ret["accs"] = accs

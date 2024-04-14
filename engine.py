@@ -164,6 +164,7 @@ def evaluate_performance(
             embeddings = model(images, targets, query_img_as_gallery=False)
             assert len(embeddings) == 1, "batch size in test phase should be 1"
             query_box_feats.append(embeddings[0].cpu().numpy())
+        time_now = str(datetime.datetime.now()); time_now = time_now.rstrip('.' + time_now.split('.')[-1])
         print('Finish feature extraction on gallery+query at {} .'.format(time_now))
 
         mkdir("data/eval_cache")
@@ -215,8 +216,8 @@ def evaluate_performance(
             )
         mAP = ret["mAP"]
         top1 = ret["accs"][0]
-    except:
-        print('Empty det results. Skip this eval.')
+    except Exception as e:
+        print(f"{type(e).__name__} at line {e.__traceback__.tb_lineno} of {__file__}: {e}")
         mAP = 0
         top1 = 0
     return mAP, top1
