@@ -78,6 +78,6 @@ class Config():
 
 class ConfigMVN():
     def __init__(self) -> None:
-        self.train_appN = [10, 30, 50, 70, 100][0]      # Settings of amount level of training data. [10, 30, 70] are included in the official paper, since [70] already includes most images.
+        self.train_appN = [10, 30, 50, 70, 100][3]      # Settings of amount level of training data. [10, 30, 70] are included in the official paper, since [70] already includes most images.
         self.gallery_size = [2000, 4000, 10000][0]      # Settings of gallery size used for evaluation.
 
