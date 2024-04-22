@@ -106,7 +106,7 @@ def main(args):
             ) or
             (
                 'MVN' in cfg.INPUT.DATASET and
-                epoch % 5 == 0
+                (epoch % 5 == 0 or epoch > max(cfg.SOLVER.LR_DECAY_MILESTONES[-1], cfg.SOLVER.MAX_EPOCHS-10))
             )
         ):
             mAP, top1 = evaluate_performance(
