@@ -1,12 +1,11 @@
 OUTPUT_DIR: "./exp_mvn"
 INPUT:
   DATASET: "MVN"
-  DATA_ROOT: "/root/autodl-tmp/datasets/ps/MovieNet-PS"
   BATCH_SIZE_TRAIN: 3
   MIN_SIZE: 900
   MAX_SIZE: 1500
 SOLVER:
-  MAX_EPOCHS: 25
+  MAX_EPOCHS: 30
   LR_DECAY_MILESTONES: [20]
 MODEL:
   LOSS:

@@ -1,3 +1,4 @@
+import os
 from defaults import get_default_cfg
 
 
@@ -22,9 +23,9 @@ class Config():
         self.lr = 0.003 * (self.batch_size / 3)  # adapt the lr linearly
         self.bb = ['resnet50', 'pvtv2'][0]
         self.pvt_weights = [
-            '/root/autodl-tmp/weights/pvt_v2_b2.pth',
-            '/root/autodl-tmp/weights/pvt_v2_b1.pth',
-            '/root/autodl-tmp/weights/pvt_v2_b0.pth',
+            os.path.join(cfg.SYS_HOME_DIR, 'weights/pvt_v2_b2.pth'),
+            os.path.join(cfg.SYS_HOME_DIR, 'weights/pvt_v2_b1.pth'),
+            os.path.join(cfg.SYS_HOME_DIR, 'weights/pvt_v2_b0.pth'),
             '',
         ][0]
         self.freeze_bb = False

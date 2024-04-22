@@ -17,4 +17,3 @@ torch-tb-profiler
 fvcore
 timm
 matplotlib
-setuptools==59.5.0

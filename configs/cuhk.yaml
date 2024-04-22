@@ -1,7 +1,6 @@
 OUTPUT_DIR: "./exp_cuhk"
 INPUT:
   DATASET: "CUHK-SYSU"
-  DATA_ROOT: "/root/autodl-tmp/datasets/ps/cuhk_sysu"
   BATCH_SIZE_TRAIN: 3
 SOLVER:
   MAX_EPOCHS: 12

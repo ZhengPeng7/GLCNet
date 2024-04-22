@@ -1,6 +1,6 @@
+import os
 import argparse
 import datetime
-import os.path as osp
 import time
 
 import torch
@@ -22,6 +22,12 @@ def main(args):
     if args.cfg_file:
         cfg.merge_from_file(args.cfg_file)
     cfg.merge_from_list(args.opts)
+    if cfg.INPUT.DATASET == "CUHK-SYSU":
+        cfg.INPUT.DATA_ROOT = os.path.join(cfg.INPUT.DATA_ROOT_PS, 'cuhk_sysu')
+    elif cfg.INPUT.DATASET == "PRW":
+        cfg.INPUT.DATA_ROOT = os.path.join(cfg.INPUT.DATA_ROOT_PS, 'prw')
+    elif cfg.INPUT.DATASET == "MVN":
+        cfg.INPUT.DATA_ROOT = os.path.join(cfg.INPUT.DATA_ROOT_PS, 'MovieNet-PS')
     cfg.freeze()
 
     device = torch.device(cfg.DEVICE)
@@ -71,7 +77,7 @@ def main(args):
     print("Creating output folder")
     output_dir = cfg.OUTPUT_DIR
     mkdir(output_dir)
-    path = osp.join(output_dir, "config.yaml")
+    path = os.path.join(output_dir, "config.yaml")
     with open(path, "w") as f:
         f.write(cfg.dump())
     print(f"Full config is saved to {path}")
@@ -79,7 +85,7 @@ def main(args):
     if cfg.TF_BOARD:
         from torch.utils.tensorboard import SummaryWriter
 
-        tf_log_path = osp.join(output_dir, "tf_log")
+        tf_log_path = os.path.join(output_dir, "tf_log")
         mkdir(tf_log_path)
         tfboard = SummaryWriter(log_dir=tf_log_path)
         print(f"TensorBoard files are saved to {tf_log_path}")
@@ -96,7 +102,7 @@ def main(args):
             epoch >= cfg.SOLVER.MAX_EPOCHS or
             (
                 epoch % cfg.EVAL_PERIOD == 0 and
-                epoch > max(cfg.SOLVER.LR_DECAY_MILESTONES[-1], cfg.SOLVER.MAX_EPOCHS-3)
+                epoch > max(cfg.SOLVER.LR_DECAY_MILESTONES[-1], cfg.SOLVER.MAX_EPOCHS-5)
             ) or
             (
                 'MVN' in cfg.INPUT.DATASET and
@@ -125,7 +131,7 @@ def main(args):
                     "lr_scheduler": lr_scheduler.state_dict(),
                     "epoch": epoch,
                 },
-                [osp.join(output_dir, f"epoch_{epoch}.pth"), osp.join(output_dir, "epoch_best.pth")][1],
+                [os.path.join(output_dir, f"epoch_{epoch}.pth"), os.path.join(output_dir, "epoch_best.pth")][1],
             )
 
     if tfboard:

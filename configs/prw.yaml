@@ -1,7 +1,6 @@
 OUTPUT_DIR: "./exp_prw"
 INPUT:
   DATASET: "PRW"
-  DATA_ROOT: "/root/autodl-tmp/datasets/ps/prw"
   BATCH_SIZE_TRAIN: 3
 SOLVER:
   MAX_EPOCHS: 12

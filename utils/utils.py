@@ -25,7 +25,7 @@ class SmoothedValue(object):
 
     def __init__(self, window_size=20, fmt=None):
         if fmt is None:
-            fmt = "{median:.4f} ({global_avg:.4f})"
+            fmt = "{median:.3f} ({global_avg:.3f})"
         self.deque = deque(maxlen=window_size)
         self.total = 0.0
         self.count = 0
@@ -119,8 +119,8 @@ class MetricLogger(object):
             header = ""
         start_time = time.time()
         end = time.time()
-        iter_time = SmoothedValue(fmt="{avg:.4f}")
-        data_time = SmoothedValue(fmt="{avg:.4f}")
+        iter_time = SmoothedValue(fmt="{avg:.3f}")
+        data_time = SmoothedValue(fmt="{avg:.3f}")
         space_fmt = ":" + str(len(str(len(iterable)))) + "d"
         log_msg = self.delimiter.join(
             [

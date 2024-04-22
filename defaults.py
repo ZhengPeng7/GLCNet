@@ -1,3 +1,4 @@
+import os
 from yacs.config import CfgNode as CN
 
 _C = CN()
@@ -7,7 +8,8 @@ _C = CN()
 # -------------------------------------------------------- #
 _C.INPUT = CN()
 _C.INPUT.DATASET = "CUHK-SYSU"
-_C.INPUT.DATA_ROOT = "/root/autodl-tmp/datasets/ps/cuhk_sysu"
+_C.SYS_HOME_DIR = '/root'
+_C.INPUT.DATA_ROOT_PS = os.path.join(_C.SYS_HOME_DIR, "datasets/ps")
 
 # Size of the smallest side of the image
 _C.INPUT.MIN_SIZE = 900
