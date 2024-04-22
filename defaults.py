@@ -8,7 +8,7 @@ _C = CN()
 # -------------------------------------------------------- #
 _C.INPUT = CN()
 _C.INPUT.DATASET = "CUHK-SYSU"
-_C.SYS_HOME_DIR = '/root'
+_C.SYS_HOME_DIR = os.environ['HOME']
 _C.INPUT.DATA_ROOT_PS = os.path.join(_C.SYS_HOME_DIR, "datasets/ps")
 
 # Size of the smallest side of the image
