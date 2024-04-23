@@ -51,6 +51,10 @@ conda create -n glc python=3.8 -y && conda activate glc
 pip install -r requirements.txt
 ```
 
+### Data
+Find all relevant data on [my google-drive folder](https://drive.google.com/drive/u/0/folders/1bEd_NAzdP6xCrldQBcKOHkCvkupNy0ix).  
+Set the variable `SYS_HOME_DIR` in `defaults.py` to the root path of all projects. I always set the structure of file system in my machine as `SYS_HOME_DIR/codes/[ps/...], SYS_HOME_DIR/datasets/[ps/...], SYS_HOME_DIR/weights/[swin/pvt/...]`.
+
 ### Train
 
 `sh ./run_${DATASET}.sh CUDA_DEVICE`

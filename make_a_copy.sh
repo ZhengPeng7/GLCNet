@@ -1,3 +1,4 @@
+#!/bin/sh
 dst=$1
 
 mkdir ../${dst}

@@ -1,4 +1,4 @@
-sleep ${2:-0}h
+#!/bin/sh
 
 # cuhk / prw / mvn
 dataset="cuhk"
