@@ -19,6 +19,7 @@ config = Config()
 
 def main(args):
     cfg = get_default_cfg()
+    cfg.set_new_allowed(True)
     if args.cfg_file:
         cfg.merge_from_file(args.cfg_file)
     cfg.merge_from_list(args.opts)
