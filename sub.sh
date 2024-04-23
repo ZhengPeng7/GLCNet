@@ -1,4 +1,5 @@
 #!/bin/sh
+export PYTHONUNBUFFERED=1
 
 script=${1:-"./run_all.sh"}
 
