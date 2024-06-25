@@ -1,11 +1,78 @@
+from collections import OrderedDict
 import torch
 import torch.nn as nn
+from torchvision.models import resnet
 from torchvision.ops import deform_conv2d
 import fvcore.nn.weight_init as weight_init
 from config import Config
 
 
 config = Config()
+
+def build_resnet50_layer4(pretrained=True):
+    resnet.model_urls["resnet50"] = "https://download.pytorch.org/models/resnet50-f46c3f97.pth"
+    resnet50_layer4 = resnet.resnet50(pretrained=pretrained).layer4
+    return resnet50_layer4
+
+
+class MultiPartSpliter(nn.Module):
+    def __init__(self, out_channels=None):
+        super(MultiPartSpliter, self).__init__()
+        self.out_channels = out_channels
+        if config.mps_blk == 'BasicDecBlk':
+            # BasicDecBlk keeps the resolution.
+            inter_channels = 512
+            out_channel_mps_blk = 2048
+            num_blk = 2
+            block_1 = nn.Sequential(*[BasicDecBlk(in_channels=1024 if not idx_blk else inter_channels, out_channels=(inter_channels if out_channels else out_channel_mps_blk) if idx_blk == num_blk - 1 else inter_channels) for idx_blk in range(num_blk)])
+            block_2 = nn.Sequential(*[BasicDecBlk(in_channels=1024 if not idx_blk else inter_channels, out_channels=(inter_channels if out_channels else out_channel_mps_blk) if idx_blk == num_blk - 1 else inter_channels) for idx_blk in range(num_blk)])
+            block_3 = nn.Sequential(*[BasicDecBlk(in_channels=1024 if not idx_blk else inter_channels, out_channels=(inter_channels if out_channels else out_channel_mps_blk) if idx_blk == num_blk - 1 else inter_channels) for idx_blk in range(num_blk)])
+            in_feat_size = (14//1, 14//1)     # shape of the output of `box_roi_pool(features, boxes, image_shapes)` in `glcnet.py`.
+        elif config.mps_blk == 'resnet50_layer4':
+            # resnet50_layer4 downscales hei and wid as 1/2
+            inter_channels = 2048
+            block_1 = build_resnet50_layer4()   # (in_channels, out_channels) of resnet50_layer4 are (1024, 2048).
+            block_2 = build_resnet50_layer4()
+            block_3 = build_resnet50_layer4()
+            in_feat_size = (14//2, 14//2)
+        scales = [1, 2, 3]
+        
+        self.block_granularity_1 = nn.Sequential(
+            nn.Conv2d(config.bb_out_channels[0], 1024, 1, 1, 0) if config.bb_out_channels[0] != 1024 else nn.Identity(),
+            block_1,
+            nn.MaxPool2d(kernel_size=(in_feat_size[0] // scales[0], in_feat_size[1])),
+        )
+        self.block_granularity_2 = nn.Sequential(
+            nn.Conv2d(config.bb_out_channels[0], 1024, 1, 1, 0) if config.bb_out_channels[0] != 1024 else nn.Identity(),
+            block_2,
+            nn.MaxPool2d(kernel_size=(in_feat_size[0] // scales[1], in_feat_size[1])),
+        )
+        self.block_granularity_3 = nn.Sequential(
+            nn.Conv2d(config.bb_out_channels[0], 1024, 1, 1, 0) if config.bb_out_channels[0] != 1024 else nn.Identity(),
+            block_3,
+            nn.MaxPool2d(kernel_size=(in_feat_size[0] // scales[2], in_feat_size[1])),
+        )
+        if out_channels:
+            self.reducer_granularity_1 = nn.Sequential(nn.Conv2d(inter_channels, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels), nn.ReLU())
+            self.reducer_granularity_2 = nn.Sequential(nn.Conv2d(inter_channels, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels), nn.ReLU())
+            self.reducer_granularity_3 = nn.Sequential(nn.Conv2d(inter_channels, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels), nn.ReLU())
+    
+    def forward(self, x):
+        feat_granularity_1 = self.block_granularity_1(x)
+        feat_granularity_2 = self.block_granularity_2(x)
+        feat_granularity_3 = self.block_granularity_3(x)
+        if self.out_channels:
+            feat_granularity_1 = self.reducer_granularity_1(feat_granularity_1)
+            feat_granularity_2 = self.reducer_granularity_2(feat_granularity_2)
+            feat_granularity_3 = self.reducer_granularity_3(feat_granularity_3)
+        feat_granularity_2_horizon_1, feat_granularity_2_horizon_2 = feat_granularity_2[:, :, 0:1, :], feat_granularity_2[:, :, 1:2, :]
+        feat_granularity_3_horizon_1, feat_granularity_3_horizon_2, feat_granularity_3_horizon_3 = feat_granularity_3[:, :, 0:1, :], feat_granularity_3[:, :, 1:2, :], feat_granularity_3[:, :, 2:3, :]
+        feat_lst = OrderedDict([
+            ['feat_granularity_1', feat_granularity_1],
+            ['feat_granularity_2_horizon_1', feat_granularity_2_horizon_1], ['feat_granularity_2_horizon_2', feat_granularity_2_horizon_2],
+            ['feat_granularity_3_horizon_1', feat_granularity_3_horizon_1], ['feat_granularity_3_horizon_2', feat_granularity_3_horizon_2], ['feat_granularity_3_horizon_3', feat_granularity_3_horizon_3],
+        ])
+        return feat_lst
 
 
 class BasicDecBlk(nn.Module):

@@ -1,6 +1,7 @@
 from collections import OrderedDict
 import torch
 import torch.nn.functional as F
+from torchvision.models import resnet
 from torch import nn
 
 from models.bb_pvtv2 import pvt_v2_b2, pvt_v2_b1, pvt_v2_b0
