@@ -21,7 +21,7 @@ class Config():
         self.cxt_ext_group = [0, 1, 2, 3, 4][3]     # [1] is the best one.
         self.batch_size = cfg.INPUT.BATCH_SIZE_TRAIN
         self.lr = 0.003 * (self.batch_size / 3)  # adapt the lr linearly
-        self.bb = ['resnet50', 'pvtv2'][1]
+        self.bb = ['resnet50', 'pvtv2'][0]
         self.pvt_weights = [
             os.path.join(cfg.SYS_HOME_DIR, 'weights/pvt_v2_b2.pth'),
             os.path.join(cfg.SYS_HOME_DIR, 'weights/pvt_v2_b1.pth'),
