@@ -3,7 +3,6 @@ from collections import OrderedDict
 import torch.nn.functional as F
 from torchvision.models import resnet
 from torch import nn
-from models.modules import BasicDecBlk
 from config import Config
 
 

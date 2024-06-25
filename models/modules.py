@@ -5,8 +5,10 @@ from torchvision.models import resnet
 from torchvision.ops import deform_conv2d
 import fvcore.nn.weight_init as weight_init
 from config import Config
+from defaults import get_default_cfg
 
 
+cfg = get_default_cfg()
 config = Config()
 
 def build_resnet50_layer4(pretrained=True):
@@ -24,31 +26,43 @@ class MultiPartSpliter(nn.Module):
             inter_channels = 512
             out_channel_mps_blk = 2048
             num_blk = 2
-            block_1 = nn.Sequential(*[BasicDecBlk(in_channels=1024 if not idx_blk else inter_channels, out_channels=(inter_channels if out_channels else out_channel_mps_blk) if idx_blk == num_blk - 1 else inter_channels) for idx_blk in range(num_blk)])
-            block_2 = nn.Sequential(*[BasicDecBlk(in_channels=1024 if not idx_blk else inter_channels, out_channels=(inter_channels if out_channels else out_channel_mps_blk) if idx_blk == num_blk - 1 else inter_channels) for idx_blk in range(num_blk)])
-            block_3 = nn.Sequential(*[BasicDecBlk(in_channels=1024 if not idx_blk else inter_channels, out_channels=(inter_channels if out_channels else out_channel_mps_blk) if idx_blk == num_blk - 1 else inter_channels) for idx_blk in range(num_blk)])
+            block_1 = nn.Sequential(
+                *[BasicDecBlk(
+                    in_channels=config.bb_out_channels[0] if idx_blk == 0 else inter_channels,
+                    out_channels=(inter_channels if out_channels else out_channel_mps_blk) if idx_blk == num_blk - 1 else inter_channels
+                ) for idx_blk in range(num_blk)]
+            )
+            block_2 = nn.Sequential(
+                *[BasicDecBlk(
+                    in_channels=config.bb_out_channels[0] if idx_blk == 0 else inter_channels,
+                    out_channels=(inter_channels if out_channels else out_channel_mps_blk) if idx_blk == num_blk - 1 else inter_channels
+                ) for idx_blk in range(num_blk)]
+            )
+            block_3 = nn.Sequential(
+                *[BasicDecBlk(
+                    in_channels=config.bb_out_channels[0] if idx_blk == 0 else inter_channels,
+                    out_channels=(inter_channels if out_channels else out_channel_mps_blk) if idx_blk == num_blk - 1 else inter_channels
+                ) for idx_blk in range(num_blk)]
+            )
             in_feat_size = (14//1, 14//1)     # shape of the output of `box_roi_pool(features, boxes, image_shapes)` in `glcnet.py`.
         elif config.mps_blk == 'resnet50_layer4':
             # resnet50_layer4 downscales hei and wid as 1/2
             inter_channels = 2048
-            block_1 = build_resnet50_layer4()   # (in_channels, out_channels) of resnet50_layer4 are (1024, 2048).
-            block_2 = build_resnet50_layer4()
-            block_3 = build_resnet50_layer4()
+            block_1 = nn.Sequential(nn.Conv2d(config.bb_out_channels[0], 1024, 1, 1, 0) if config.bb_out_channels[0] != 1024 else nn.Identity(), build_resnet50_layer4())   # (in_channels, out_channels) of resnet50_layer4 are (1024, 2048).
+            block_2 = nn.Sequential(nn.Conv2d(config.bb_out_channels[0], 1024, 1, 1, 0) if config.bb_out_channels[0] != 1024 else nn.Identity(), build_resnet50_layer4())
+            block_3 = nn.Sequential(nn.Conv2d(config.bb_out_channels[0], 1024, 1, 1, 0) if config.bb_out_channels[0] != 1024 else nn.Identity(), build_resnet50_layer4())
             in_feat_size = (14//2, 14//2)
         scales = [1, 2, 3]
         
         self.block_granularity_1 = nn.Sequential(
-            nn.Conv2d(config.bb_out_channels[0], 1024, 1, 1, 0) if config.bb_out_channels[0] != 1024 else nn.Identity(),
             block_1,
             nn.MaxPool2d(kernel_size=(in_feat_size[0] // scales[0], in_feat_size[1])),
         )
         self.block_granularity_2 = nn.Sequential(
-            nn.Conv2d(config.bb_out_channels[0], 1024, 1, 1, 0) if config.bb_out_channels[0] != 1024 else nn.Identity(),
             block_2,
             nn.MaxPool2d(kernel_size=(in_feat_size[0] // scales[1], in_feat_size[1])),
         )
         self.block_granularity_3 = nn.Sequential(
-            nn.Conv2d(config.bb_out_channels[0], 1024, 1, 1, 0) if config.bb_out_channels[0] != 1024 else nn.Identity(),
             block_3,
             nn.MaxPool2d(kernel_size=(in_feat_size[0] // scales[2], in_feat_size[1])),
         )
@@ -190,7 +204,7 @@ class ASPPDeformable(nn.Module):
 
         self.global_avg_pool = nn.Sequential(nn.AdaptiveAvgPool2d((1, 1)),
                                              nn.Conv2d(in_channels, self.in_channelster, 1, stride=1, bias=False),
-                                             nn.BatchNorm2d(self.in_channelster) if config.batch_size > 1 else nn.Identity(),
+                                             nn.BatchNorm2d(self.in_channelster),
                                              nn.ReLU(inplace=True))
         self.conv1 = nn.Conv2d(self.in_channelster * (2 + len(self.aspp_deforms)), out_channels, 1, bias=False)
         self.bn1 = nn.BatchNorm2d(out_channels)

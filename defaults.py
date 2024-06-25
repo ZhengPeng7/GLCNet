@@ -16,10 +16,6 @@ _C.INPUT.MIN_SIZE = 900
 # Maximum size of the side of the image
 _C.INPUT.MAX_SIZE = 1500
 
-# TODO: support aspect ratio grouping
-# Whether to use aspect ratio grouping for saving GPU memory
-# _C.INPUT.ASPECT_RATIO_GROUPING_TRAIN = False
-
 # Number of images per batch
 _C.INPUT.BATCH_SIZE_TRAIN = 3
 _C.INPUT.BATCH_SIZE_TEST = 1
