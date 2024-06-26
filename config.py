@@ -32,11 +32,11 @@ class Config():
         if 'resnet' in self.bb:
             self.bb_out_channels = [1024, 2048]
         elif 'pvt' in self.bb:
-            if 'b2' in self.weights_pvt:
+            if '_b2' in self.weights_pvt:
                 self.bb_out_channels = [320, 512]
-            if 'b1' in self.weights_pvt:
+            elif '_b1' in self.weights_pvt:
                 self.bb_out_channels = [320, 512]
-            if 'b0' in self.weights_pvt:
+            elif '_b0' in self.weights_pvt:
                 self.bb_out_channels = [160, 256]
         else:
             self.bb_out_channels = [512, 1024]
