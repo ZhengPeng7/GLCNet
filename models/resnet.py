@@ -67,7 +67,7 @@ def build_resnet101(pretrained=True):
         'IMAGENET1K_V1': 'https://download.pytorch.org/models/resnet101-63fe2227.pth',
         'IMAGENET1K_V2': 'https://download.pytorch.org/models/resnet101-cd907fc2.pth',
     }[['legacy', 'IMAGENET1K_V1', 'IMAGENET1K_V2'][0]][0]
-    bb_model = resnet.resnet101(pretrained=pretrained if 0 else None)
+    bb_model = resnet.resnet101(pretrained=pretrained if pretrained else None)
 
     # freeze layers
     bb_model.conv1.weight.requires_grad_(False)
