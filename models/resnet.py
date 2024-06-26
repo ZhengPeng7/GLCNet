@@ -46,11 +46,12 @@ class Res4Head(nn.Sequential):
 
 
 def build_resnet50(pretrained=True):
+    weights_type = ['legacy', 'IMAGENET1K_V1', 'IMAGENET1K_V2'][0]
     resnet.model_urls["resnet50"] = {
         'legacy': 'https://download.pytorch.org/models/resnet50-f46c3f97.pth',
         'IMAGENET1K_V1': 'https://download.pytorch.org/models/resnet50-0676ba61.pth',
         'IMAGENET1K_V2': 'https://download.pytorch.org/models/resnet50-11ad3fa6.pth',
-    }[['legacy', 'IMAGENET1K_V1', 'IMAGENET1K_V2'][0]][0]
+    }[weights_type]
     bb_model = resnet.resnet50(pretrained=pretrained if pretrained else None)
 
     # freeze layers
@@ -62,11 +63,12 @@ def build_resnet50(pretrained=True):
 
 
 def build_resnet101(pretrained=True):
+    weights_type = ['legacy', 'IMAGENET1K_V1', 'IMAGENET1K_V2'][0]
     resnet.model_urls["resnet101"] = {
         'legacy': 'https://download.pytorch.org/models/resnet101-63fe2227.pth',
         'IMAGENET1K_V1': 'https://download.pytorch.org/models/resnet101-63fe2227.pth',
         'IMAGENET1K_V2': 'https://download.pytorch.org/models/resnet101-cd907fc2.pth',
-    }[['legacy', 'IMAGENET1K_V1', 'IMAGENET1K_V2'][0]][0]
+    }[weights_type]
     bb_model = resnet.resnet101(pretrained=pretrained if pretrained else None)
 
     # freeze layers
