@@ -46,8 +46,28 @@ class Res4Head(nn.Sequential):
 
 
 def build_resnet50(pretrained=True):
-    resnet.model_urls["resnet50"] = "https://download.pytorch.org/models/resnet50-f46c3f97.pth"
+    resnet.model_urls["resnet50"] = {
+        'legacy': 'https://download.pytorch.org/models/resnet50-f46c3f97.pth',
+        'IMAGENET1K_V1': 'https://download.pytorch.org/models/resnet50-0676ba61.pth',
+        'IMAGENET1K_V2': 'https://download.pytorch.org/models/resnet50-11ad3fa6.pth',
+    }[['legacy', 'IMAGENET1K_V1', 'IMAGENET1K_V2'][0]][0]
     bb_model = resnet.resnet50(pretrained=pretrained if pretrained else None)
+
+    # freeze layers
+    bb_model.conv1.weight.requires_grad_(False)
+    bb_model.bn1.weight.requires_grad_(False)
+    bb_model.bn1.bias.requires_grad_(False)
+
+    return Backbone(bb_model), Res4Head(bb_model)
+
+
+def build_resnet101(pretrained=True):
+    resnet.model_urls["resnet101"] = {
+        'legacy': 'https://download.pytorch.org/models/resnet101-63fe2227.pth',
+        'IMAGENET1K_V1': 'https://download.pytorch.org/models/resnet101-63fe2227.pth',
+        'IMAGENET1K_V2': 'https://download.pytorch.org/models/resnet101-cd907fc2.pth',
+    }[['legacy', 'IMAGENET1K_V1', 'IMAGENET1K_V2'][0]][0]
+    bb_model = resnet.resnet101(pretrained=pretrained if 0 else None)
 
     # freeze layers
     bb_model.conv1.weight.requires_grad_(False)

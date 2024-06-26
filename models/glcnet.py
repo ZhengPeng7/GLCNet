@@ -16,10 +16,9 @@ from losses.oim import OIMLoss
 from config import Config
 from models.modules import SEAttention
 
-from models.resnet import build_resnet50
-from models.modules import MultiPartSpliter
+from models.resnet import build_resnet50, build_resnet101
 from models.pvt import build_pvt
-from models.swin import build_swin
+from models.modules import MultiPartSpliter
 
 from models.cxt_ext import ContextExtractor1, ContextExtractor2, ContextExtractor3_scene, ContextExtractor3_group
 
@@ -33,10 +32,10 @@ class GLCNet(nn.Module):
         print('Using backbone:', config.bb)
         if config.bb == 'resnet50':
             backbone, box_head = build_resnet50(pretrained=True)
+        elif config.bb == 'resnet101':
+            backbone, box_head = build_resnet101(pretrained=True)
         elif config.bb == 'pvtv2':
             backbone, box_head = build_pvt(weights=config.weights_pvt)
-        elif config.bb == 'swin':
-            backbone, box_head = build_swin(weights=config.weights_swin)
         else:
             print('Not a valid backbone in `config.py`')
             exit()
@@ -184,9 +183,6 @@ class GLCNet(nn.Module):
         original_image_sizes = [img.shape[-2:] for img in images]
         images, targets = self.transform(images, targets)
         features = self.backbone(images.tensors)
-
-        if 'swin' in config.bb:
-            features_x_for_swin = features["x_for_stage_4"]
 
         features = OrderedDict([["feat_res3", features["feat_res3"]]])
 

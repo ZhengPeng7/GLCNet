@@ -61,7 +61,7 @@ def main(args):
     params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.SGD(
         params,
-        lr=config.lr,
+        lr=config.lr * (cfg.INPUT.BATCH_SIZE_TRAIN / 3),    # adapt the lr linearly,
         momentum=cfg.SOLVER.SGD_MOMENTUM,
         weight_decay=cfg.SOLVER.WEIGHT_DECAY,
     )

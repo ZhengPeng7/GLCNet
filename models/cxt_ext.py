@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
 from models.modules import CoAttLayer, ChannelAttention, SpatialAttention
+from config import Config
+
+
+config = Config()
 
 
 class ContextExtractor1(nn.Module):
@@ -9,13 +13,13 @@ class ContextExtractor1(nn.Module):
         super().__init__()
         self.convs = nn.Sequential(
             nn.Conv2d(in_channels, 256, 3, 1, 1),
-            nn.BatchNorm2d(256),
+            nn.BatchNorm2d(256) if config.use_bn else nn.Identity(),
             nn.ReLU(inplace=True),
             nn.Conv2d(256, 256, 3, 1, 1),
-            nn.BatchNorm2d(256),
+            nn.BatchNorm2d(256) if config.use_bn else nn.Identity(),
             nn.ReLU(inplace=True),
             nn.Conv2d(256, 1, 3, 1, 1),
-            nn.BatchNorm2d(1),
+            nn.BatchNorm2d(1) if config.use_bn else nn.Identity(),
             nn.ReLU(inplace=True),
             nn.Sigmoid()
         )
@@ -44,16 +48,16 @@ class ContextExtractor3_scene(nn.Module):
     def __init__(self, in_channels=1024):
         super().__init__()
         self.convs_1x1 = nn.Sequential(
-            nn.Conv2d(in_channels, 256, 1, 1, 0), nn.BatchNorm2d(256), nn.ReLU(inplace=True),
-            nn.Conv2d(256, in_channels, 1, 1, 0), nn.BatchNorm2d(in_channels), nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels, 256, 1, 1, 0), nn.BatchNorm2d(256) if config.use_bn else nn.Identity(), nn.ReLU(inplace=True),
+            nn.Conv2d(256, in_channels, 1, 1, 0), nn.BatchNorm2d(in_channels) if config.use_bn else nn.Identity(), nn.ReLU(inplace=True),
         )
         self.convs_3x3 = nn.Sequential(
-            nn.Conv2d(in_channels, 256, 3, 1, 1), nn.BatchNorm2d(256), nn.ReLU(inplace=True),
-            nn.Conv2d(256, in_channels, 3, 1, 1), nn.BatchNorm2d(in_channels), nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels, 256, 3, 1, 1), nn.BatchNorm2d(256) if config.use_bn else nn.Identity(), nn.ReLU(inplace=True),
+            nn.Conv2d(256, in_channels, 3, 1, 1), nn.BatchNorm2d(in_channels) if config.use_bn else nn.Identity(), nn.ReLU(inplace=True),
         )
         self.convs_5x5 = nn.Sequential(
-            nn.Conv2d(in_channels, 256, 5, 1, 2), nn.BatchNorm2d(256), nn.ReLU(inplace=True),
-            nn.Conv2d(256, in_channels, 5, 1, 2), nn.BatchNorm2d(in_channels), nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels, 256, 5, 1, 2), nn.BatchNorm2d(256) if config.use_bn else nn.Identity(), nn.ReLU(inplace=True),
+            nn.Conv2d(256, in_channels, 5, 1, 2), nn.BatchNorm2d(in_channels) if config.use_bn else nn.Identity(), nn.ReLU(inplace=True),
         )
         self.spatial_attention = SpatialAttention(kernel_size=5)
         self.avgpool = nn.AdaptiveMaxPool2d(1)
@@ -74,16 +78,16 @@ class ContextExtractor3_group(nn.Module):
     def __init__(self, in_channels=1024):
         super().__init__()
         self.convs_1x1 = nn.Sequential(
-            nn.Conv2d(in_channels, 256, 1, 1, 0), nn.BatchNorm2d(256), nn.ReLU(inplace=True),
-            nn.Conv2d(256, in_channels, 1, 1, 0), nn.BatchNorm2d(in_channels), nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels, 256, 1, 1, 0), nn.BatchNorm2d(256) if config.use_bn else nn.Identity(), nn.ReLU(inplace=True),
+            nn.Conv2d(256, in_channels, 1, 1, 0), nn.BatchNorm2d(in_channels) if config.use_bn else nn.Identity(), nn.ReLU(inplace=True),
         )
         self.convs_3x3 = nn.Sequential(
-            nn.Conv2d(in_channels, 256, 3, 1, 1), nn.BatchNorm2d(256), nn.ReLU(inplace=True),
-            nn.Conv2d(256, in_channels, 3, 1, 1), nn.BatchNorm2d(in_channels), nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels, 256, 3, 1, 1), nn.BatchNorm2d(256) if config.use_bn else nn.Identity(), nn.ReLU(inplace=True),
+            nn.Conv2d(256, in_channels, 3, 1, 1), nn.BatchNorm2d(in_channels) if config.use_bn else nn.Identity(), nn.ReLU(inplace=True),
         )
         self.convs_5x5 = nn.Sequential(
-            nn.Conv2d(in_channels, 256, 5, 1, 2), nn.BatchNorm2d(256), nn.ReLU(inplace=True),
-            nn.Conv2d(256, in_channels, 5, 1, 2), nn.BatchNorm2d(in_channels), nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels, 256, 5, 1, 2), nn.BatchNorm2d(256) if config.use_bn else nn.Identity(), nn.ReLU(inplace=True),
+            nn.Conv2d(256, in_channels, 5, 1, 2), nn.BatchNorm2d(in_channels) if config.use_bn else nn.Identity(), nn.ReLU(inplace=True),
         )
         self.channel_attention = ChannelAttention(in_channels)
         self.avgpool = nn.AdaptiveMaxPool2d(1)

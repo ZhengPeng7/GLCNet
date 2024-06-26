@@ -19,20 +19,15 @@ class Config():
 
         self.cxt_ext_scene = [0, 1, 2, 3, 4][1]     # [1] is the best one.
         self.cxt_ext_group = [0, 1, 2, 3, 4][3]     # [1] is the best one.
-        self.lr = 0.003 * (cfg.INPUT.BATCH_SIZE_TRAIN / 3)  # adapt the lr linearly
-        self.bb = ['resnet50', 'pvtv2', 'swin'][1]
+        self.lr = 0.003
+        self.bb = ['resnet50', 'resnet101', 'pvtv2'][0]
         self.weights_pvt = [
             os.path.join(cfg.SYS_HOME_DIR, 'weights/pvt_v2_b2.pth'),
             os.path.join(cfg.SYS_HOME_DIR, 'weights/pvt_v2_b1.pth'),
             os.path.join(cfg.SYS_HOME_DIR, 'weights/pvt_v2_b0.pth'),
             '',
-        ][1]
-        self.weights_swin = [
-            os.path.join(cfg.SYS_HOME_DIR, 'weights/swin_base_patch4_window12_384_22kto1k.pth'),
-            os.path.join(cfg.SYS_HOME_DIR, 'weights/swin_small_patch4_window7_224_22kto1k_finetune.pth'),
-            os.path.join(cfg.SYS_HOME_DIR, 'weights/swin_tiny_patch4_window7_224_22kto1k_finetune.pth'),
-            '',
-        ][2]
+        ][0]
+        self.use_bn = True  # not ('pvtv2' == self.bb and 'pvt_v2_b2.pth' in self.weights_pvt)
         self.freeze_bb = False
         if 'resnet' in self.bb:
             self.bb_out_channels = [1024, 2048]
@@ -43,13 +38,6 @@ class Config():
                 self.bb_out_channels = [320, 512]
             if 'b0' in self.weights_pvt:
                 self.bb_out_channels = [160, 256]
-        elif 'swin' in self.bb:
-            if '_tiny' in self.weights_swin:
-                self.bb_out_channels = [384, 768]
-            if '_small' in self.weights_swin:
-                self.bb_out_channels = [384, 768]
-            if '_base' in self.weights_swin:
-                self.bb_out_channels = [512, 1024]
         else:
             self.bb_out_channels = [512, 1024]
 

@@ -5,10 +5,8 @@ from torchvision.models import resnet
 from torchvision.ops import deform_conv2d
 import fvcore.nn.weight_init as weight_init
 from config import Config
-from defaults import get_default_cfg
 
 
-cfg = get_default_cfg()
 config = Config()
 
 def build_resnet50_layer4(pretrained=True):
@@ -67,9 +65,9 @@ class MultiPartSpliter(nn.Module):
             nn.MaxPool2d(kernel_size=(in_feat_size[0] // scales[2], in_feat_size[1])),
         )
         if out_channels:
-            self.reducer_granularity_1 = nn.Sequential(nn.Conv2d(inter_channels, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels), nn.ReLU())
-            self.reducer_granularity_2 = nn.Sequential(nn.Conv2d(inter_channels, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels), nn.ReLU())
-            self.reducer_granularity_3 = nn.Sequential(nn.Conv2d(inter_channels, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels), nn.ReLU())
+            self.reducer_granularity_1 = nn.Sequential(nn.Conv2d(inter_channels, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels) if config.use_bn else nn.Identity(), nn.ReLU())
+            self.reducer_granularity_2 = nn.Sequential(nn.Conv2d(inter_channels, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels) if config.use_bn else nn.Identity(), nn.ReLU())
+            self.reducer_granularity_3 = nn.Sequential(nn.Conv2d(inter_channels, out_channels, 1, bias=False), nn.BatchNorm2d(out_channels) if config.use_bn else nn.Identity(), nn.ReLU())
     
     def forward(self, x):
         feat_granularity_1 = self.block_granularity_1(x)
@@ -97,8 +95,8 @@ class BasicDecBlk(nn.Module):
         self.relu_in = nn.ReLU(inplace=True)
         self.dec_att = ASPPDeformable(in_channels=inter_channels)
         self.conv_out = nn.Conv2d(inter_channels, out_channels, 3, 1, padding=1)
-        self.bn_in = nn.BatchNorm2d(inter_channels)
-        self.bn_out = nn.BatchNorm2d(out_channels)
+        self.bn_in = nn.BatchNorm2d(inter_channels) if config.use_bn else nn.Identity()
+        self.bn_out = nn.BatchNorm2d(out_channels) if config.use_bn else nn.Identity()
 
     def forward(self, x):
         x = self.conv_in(x)
@@ -179,7 +177,7 @@ class _ASPPModuleDeformable(nn.Module):
         super(_ASPPModuleDeformable, self).__init__()
         self.atrous_conv = DeformableConv2d(in_channels, planes, kernel_size=kernel_size,
                                             stride=1, padding=padding, bias=False)
-        self.bn = nn.BatchNorm2d(planes)
+        self.bn = nn.BatchNorm2d(planes) if config.use_bn else nn.Identity()
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x):
@@ -204,10 +202,10 @@ class ASPPDeformable(nn.Module):
 
         self.global_avg_pool = nn.Sequential(nn.AdaptiveAvgPool2d((1, 1)),
                                              nn.Conv2d(in_channels, self.in_channelster, 1, stride=1, bias=False),
-                                             nn.BatchNorm2d(self.in_channelster),
+                                             nn.BatchNorm2d(self.in_channelster) if config.use_bn else nn.Identity(),
                                              nn.ReLU(inplace=True))
         self.conv1 = nn.Conv2d(self.in_channelster * (2 + len(self.aspp_deforms)), out_channels, 1, bias=False)
-        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.bn1 = nn.BatchNorm2d(out_channels) if config.use_bn else nn.Identity()
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout(0.5)
 
