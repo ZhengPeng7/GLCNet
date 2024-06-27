@@ -63,7 +63,7 @@ def build_resnet50(pretrained=True):
 
 
 def build_resnet101(pretrained=True):
-    weights_type = ['legacy', 'IMAGENET1K_V1', 'IMAGENET1K_V2'][0]
+    weights_type = ['legacy', 'IMAGENET1K_V1', 'IMAGENET1K_V2'][2]
     resnet.model_urls["resnet101"] = {
         'legacy': 'https://download.pytorch.org/models/resnet101-63fe2227.pth',
         'IMAGENET1K_V1': 'https://download.pytorch.org/models/resnet101-63fe2227.pth',
