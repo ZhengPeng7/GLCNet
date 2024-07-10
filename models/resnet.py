@@ -58,7 +58,7 @@ def build_resnet50(pretrained=True):
             # 'https://huggingface.co/Alice10/psvision/resolve/main/resnet50-ps12.pth'
             bb_ckpt_path = os.path.join(os.environ['HOME'], '.cache/torch/hub/checkpoints', 'resnet50-ps12.pth')
         elif 'MovieNet-PS-N' in bb_resume:
-            bb_ckpt_path = os.path.join(os.environ['HOME'], 'weights', 'resnet50-pt_mvnps_n{}.pth'.format(bb_resume.split('-N')[-1].split('.pth')[0]))
+            bb_ckpt_path = os.path.join(os.environ['HOME'], 'weights', 'resnet50-pt_mvnps_n{}-ep{}.pth'.format(bb_resume.split('-N')[-1].split('-ep')[0], bb_resume.split('-ep')[-1].split('.pth')[0]))
         bb_model = load_bb_weights(bb_model, bb_ckpt_path)
     else:
         resnet.model_urls["resnet50"] = {
