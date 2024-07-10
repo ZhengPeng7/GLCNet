@@ -123,7 +123,7 @@ def main(args):
             mAP, top1 = 0, 0
         mAP_top1 = mAP + top1 * 0.5     # mAP is more important
         mAP_top1_lst.append(mAP_top1)
-        if mAP_top1 > max(mAP_top1_lst[:-1]):
+        if mAP_top1 > max(mAP_top1_lst[:-1]) or 1:
             print('Saving the best model with mAP={:.3f}, top-1={:.3f} ...'.format(mAP, top1))
             save_on_master(
                 {
