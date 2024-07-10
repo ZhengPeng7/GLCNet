@@ -49,7 +49,7 @@ class Res4Head(nn.Sequential):
 
 def build_resnet50(pretrained=True):
     weights_type = ['legacy', 'IMAGENET1K_V1', 'IMAGENET1K_V2'][0]
-    bb_resume = [False, 'MovieNet-PS-N20', 'Pre-trained PS'][1]
+    bb_resume = [False, 'MovieNet-PS-N{}-ep{}'.format([10, 30, 70][2], [1, 2, 5, 10, 15][0]), 'Pre-trained PS'][1]
 
     if bb_resume:
         resnet.model_urls["resnet50"] = 'https://download.pytorch.org/models/resnet50-f46c3f97.pth'
@@ -57,8 +57,8 @@ def build_resnet50(pretrained=True):
         if bb_resume == 'Pre-trained PS':
             # 'https://huggingface.co/Alice10/psvision/resolve/main/resnet50-ps12.pth'
             bb_ckpt_path = os.path.join(os.environ['HOME'], '.cache/torch/hub/checkpoints', 'resnet50-ps12.pth')
-        elif bb_resume == 'MovieNet-PS-N20':
-            bb_ckpt_path = os.path.join(os.environ['HOME'], 'weights', 'resnet50-pt_mvnps_n30.pth')
+        elif 'MovieNet-PS-N' in bb_resume:
+            bb_ckpt_path = os.path.join(os.environ['HOME'], 'weights', 'resnet50-pt_mvnps_n{}.pth'.format(bb_resume.split('-N')[-1].split('.pth')[0]))
         bb_model = load_bb_weights(bb_model, bb_ckpt_path)
     else:
         resnet.model_urls["resnet50"] = {
