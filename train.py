@@ -71,9 +71,11 @@ def main(args):
     )
 
     start_epoch = 1
-    if args.resume:
+    if args.ckpt and not args.eval:
         assert args.ckpt, "--ckpt must be specified when --resume enabled"
-        start_epoch = resume_from_ckpt(args.ckpt, model, optimizer, lr_scheduler) + 1
+        print('Resuming from', args.ckpt)
+        # Resume from models pre-trained on MovieNet-PS. Otherwise, assign the return value to `start_epoch`.
+        _ = resume_from_ckpt(args.ckpt, model, optimizer, lr_scheduler) + 1
 
     print("Creating output folder")
     output_dir = cfg.OUTPUT_DIR
@@ -148,10 +150,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--eval", action="store_true", help="Evaluate the performance of a given checkpoint."
     )
-    parser.add_argument(
-        "--resume", action="store_true", help="Resume from the specified checkpoint."
-    )
-    parser.add_argument("--ckpt", help="Path to checkpoint to resume or evaluate.")
+    parser.add_argument("--ckpt", default=os.path.join(os.environ['HOME'], 'weights', 'bs12/resnet50-pt_mvnps_n30-ep1.pth'), help="Path to checkpoint to resume or evaluate.")
     parser.add_argument(
         "opts", nargs=argparse.REMAINDER, help="Modify config options using the command-line"
     )
