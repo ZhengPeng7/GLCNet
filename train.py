@@ -150,7 +150,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--eval", action="store_true", help="Evaluate the performance of a given checkpoint."
     )
-    parser.add_argument("--ckpt", default=os.path.join(os.environ['HOME'], 'weights', 'bs12/resnet50-pt_mvnps_n30-ep1.pth'), help="Path to checkpoint to resume or evaluate.")
+    parser.add_argument("--ckpt", default='', help="Path to checkpoint to resume or evaluate.")
     parser.add_argument(
         "opts", nargs=argparse.REMAINDER, help="Modify config options using the command-line"
     )
