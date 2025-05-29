@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Remove cache files
 rm -rf __pycache__
 rm -rf exp_*

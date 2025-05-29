@@ -1,20 +1,19 @@
--f https://download.pytorch.org/whl/cu113/torch_stable.html
-torch==1.10.2+cu113
--f https://download.pytorch.org/whl/cu113/torch_stable.html
-torchvision==0.11.3+cu113
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch>=2.7.0
+--extra-index-url https://download.pytorch.org/whl/cu128
+torchvision
 
-black
-flake8
-isort
+numpy<2
 scikit-learn
 scipy
+matplotlib
+accelerate
+timm
+
+tensorboard
+torch-tb-profiler
+
 tabulate
 tqdm
+
 yacs
-future
-tensorboard>=0.2.0
-torch-tb-profiler
-fvcore
-timm
-matplotlib
-setuptools==59.5.0

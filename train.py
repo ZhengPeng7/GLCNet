@@ -14,8 +14,9 @@ from utils.utils import mkdir, resume_from_ckpt, save_on_master, set_random_seed
 from config import Config
 
 
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
 config = Config()
-
 
 def main(args):
     cfg = get_default_cfg()
@@ -38,6 +39,11 @@ def main(args):
     print("Creating model")
     model = GLCNet(cfg)
     model.to(device)
+
+    if config.compile:
+        model = torch.compile(model, mode=['default', 'reduce-overhead', 'max-autotune'][0])
+    if config.precisionHigh:
+        torch.set_float32_matmul_precision('high')
 
     print("Loading data")
     gallery_loader, query_loader = build_test_loader(cfg)

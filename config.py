@@ -7,6 +7,10 @@ cfg = get_default_cfg()
 
 class Config():
     def __init__(self) -> None:
+        # Training
+        self.precisionHigh = True
+        self.compile = False    # 5090, CUHK, 1 epoch, bs = 3 -- True: 20:00 + 24.70GB, False: 21.5m + 26.86GB
+
         self.multi_part_matching = True    # 1.1 min for 200 steps w/ False.
         self.mps_channels = [None, 256][0]
         self.mps_norm_len = [384, 192, 96][1] // (1 + 2 + 3)
@@ -22,9 +26,9 @@ class Config():
         self.lr = 0.003
         self.bb = ['resnet50', 'resnet101', 'pvtv2'][0]
         self.weights_pvt = [
-            os.path.join(cfg.SYS_HOME_DIR, 'weights/pvt_v2_b2.pth'),
-            os.path.join(cfg.SYS_HOME_DIR, 'weights/pvt_v2_b1.pth'),
-            os.path.join(cfg.SYS_HOME_DIR, 'weights/pvt_v2_b0.pth'),
+            os.path.join(cfg.SYS_HOME_DIR, 'weights/cv/pvt_v2_b2.pth'),
+            os.path.join(cfg.SYS_HOME_DIR, 'weights/cv/pvt_v2_b1.pth'),
+            os.path.join(cfg.SYS_HOME_DIR, 'weights/cv/pvt_v2_b0.pth'),
             '',
         ][0]
         self.use_bn = True  # not ('pvtv2' == self.bb and 'pvt_v2_b2.pth' in self.weights_pvt)

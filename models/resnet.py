@@ -1,14 +1,17 @@
 import os
 from collections import OrderedDict
+from packaging import version
 
 import torch
 import torch.nn.functional as F
-from torchvision.models import resnet
+from torchvision.models import resnet, ResNet50_Weights, ResNet101_Weights
 from torch import nn
 from config import Config
 
 
 config = Config()
+torch_version = version.parse(torch.__version__.split("+")[0])
+torch_version_legacy = version.parse('1.10.2')
 
 class Backbone(nn.Sequential):
     def __init__(self, bb_model):
@@ -52,8 +55,11 @@ def build_resnet50(pretrained=True):
     bb_resume_custom = [False, 'MovieNet-PS-N{}-ep{}'.format([10, 30, 70][2], [1, 2, 5, 10, 15][0]), 'Pre-trained PS'][0]
 
     if bb_resume_custom:
-        resnet.model_urls["resnet50"] = 'https://download.pytorch.org/models/resnet50-f46c3f97.pth'
-        bb_model = resnet.resnet50(pretrained=pretrained if pretrained else None)
+        if torch_version <= torch_version_legacy:
+            resnet.model_urls["resnet50"] = 'https://download.pytorch.org/models/resnet50-f46c3f97.pth'
+            bb_model = resnet.resnet50(pretrained=pretrained if pretrained else None)
+        else:
+            bb_model = resnet.resnet50(weights=ResNet50_Weights.DEFAULT if pretrained else None)
         if bb_resume_custom == 'Pre-trained PS':
             # 'https://huggingface.co/Alice10/psvision/resolve/main/resnet50-ps12.pth'
             bb_ckpt_path = os.path.join(os.environ['HOME'], '.cache/torch/hub/checkpoints', 'resnet50-ps12.pth')
@@ -61,12 +67,15 @@ def build_resnet50(pretrained=True):
             bb_ckpt_path = os.path.join(os.environ['HOME'], 'weights', 'resnet50-pt_mvnps_n{}-ep{}.pth'.format(bb_resume_custom.split('-N')[-1].split('-ep')[0], bb_resume_custom.split('-ep')[-1].split('.pth')[0]))
         bb_model = load_bb_weights(bb_model, bb_ckpt_path)
     else:
-        resnet.model_urls["resnet50"] = {
-            'legacy': 'https://download.pytorch.org/models/resnet50-f46c3f97.pth',
-            'IMAGENET1K_V1': 'https://download.pytorch.org/models/resnet50-0676ba61.pth',
-            'IMAGENET1K_V2': 'https://download.pytorch.org/models/resnet50-11ad3fa6.pth',
-        }[weights_type]
-        bb_model = resnet.resnet50(pretrained=pretrained if pretrained else None)
+        if torch_version <= torch_version_legacy:
+            resnet.model_urls["resnet50"] = {
+                'legacy': 'https://download.pytorch.org/models/resnet50-f46c3f97.pth',
+                'IMAGENET1K_V1': 'https://download.pytorch.org/models/resnet50-0676ba61.pth',
+                'IMAGENET1K_V2': 'https://download.pytorch.org/models/resnet50-11ad3fa6.pth',
+            }[weights_type]
+            bb_model = resnet.resnet50(pretrained=pretrained if pretrained else None)
+        else:
+            bb_model = resnet.resnet50(weights=ResNet50_Weights.DEFAULT if pretrained else None)
 
     # freeze layers
     bb_model.conv1.weight.requires_grad_(False)
@@ -77,13 +86,16 @@ def build_resnet50(pretrained=True):
 
 
 def build_resnet101(pretrained=True):
-    weights_type = ['legacy', 'IMAGENET1K_V1', 'IMAGENET1K_V2'][2]
-    resnet.model_urls["resnet101"] = {
-        'legacy': 'https://download.pytorch.org/models/resnet101-63fe2227.pth',
-        'IMAGENET1K_V1': 'https://download.pytorch.org/models/resnet101-63fe2227.pth',
-        'IMAGENET1K_V2': 'https://download.pytorch.org/models/resnet101-cd907fc2.pth',
-    }[weights_type]
-    bb_model = resnet.resnet101(pretrained=pretrained if pretrained else None)
+    if torch_version <= torch_version_legacy:
+        weights_type = ['legacy', 'IMAGENET1K_V1', 'IMAGENET1K_V2'][2]
+        resnet.model_urls["resnet101"] = {
+            'legacy': 'https://download.pytorch.org/models/resnet101-63fe2227.pth',
+            'IMAGENET1K_V1': 'https://download.pytorch.org/models/resnet101-63fe2227.pth',
+            'IMAGENET1K_V2': 'https://download.pytorch.org/models/resnet101-cd907fc2.pth',
+        }[weights_type]
+        bb_model = resnet.resnet101(pretrained=pretrained if pretrained else None)
+    else:
+        bb_model = resnet.resnet101(weights=ResNet101_Weights.DEFAULT if pretrained else None)
 
     # freeze layers
     bb_model.conv1.weight.requires_grad_(False)

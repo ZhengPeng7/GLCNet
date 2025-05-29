@@ -8,7 +8,7 @@ _C = CN()
 # -------------------------------------------------------- #
 _C.INPUT = CN()
 _C.INPUT.DATASET = "CUHK-SYSU"
-_C.SYS_HOME_DIR = os.environ['HOME']
+_C.SYS_HOME_DIR = [os.path.expanduser('~'), '/workspace'][1]
 _C.INPUT.DATA_ROOT_PS = os.path.join(_C.SYS_HOME_DIR, "datasets/ps")
 
 # Size of the smallest side of the image
@@ -131,8 +131,6 @@ _C.EVAL_USE_CBGM = False
 # -------------------------------------------------------- #
 #                           Miscs                          #
 # -------------------------------------------------------- #
-# Save a checkpoint after every this number of epochs
-_C.CKPT_PERIOD = 1
 # The period (in terms of iterations) to display training losses
 _C.DISP_PERIOD = 500
 # Whether to use tensorboard for visualization

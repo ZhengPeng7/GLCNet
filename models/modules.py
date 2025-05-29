@@ -1,17 +1,22 @@
 from collections import OrderedDict
+from packaging import version
 import torch
 import torch.nn as nn
-from torchvision.models import resnet
+from torchvision.models import resnet, ResNet50_Weights
 from torchvision.ops import deform_conv2d
-import fvcore.nn.weight_init as weight_init
 from config import Config
 
 
 config = Config()
+torch_version = version.parse(torch.__version__.split("+")[0])
+torch_version_legacy = version.parse('1.10.1')
 
 def build_resnet50_layer4(pretrained=True):
-    resnet.model_urls["resnet50"] = "https://download.pytorch.org/models/resnet50-f46c3f97.pth"
-    resnet50_layer4 = resnet.resnet50(pretrained=pretrained).layer4
+    if torch_version <= torch_version_legacy:
+        resnet.model_urls["resnet50"] = "https://download.pytorch.org/models/resnet50-f46c3f97.pth"
+        resnet50_layer4 = resnet.resnet50(pretrained=pretrained if pretrained else None).layer4
+    else:
+        resnet50_layer4 = resnet.resnet50(weights=ResNet50_Weights.DEFAULT if pretrained else None).layer4
     return resnet50_layer4
 
 
@@ -228,12 +233,9 @@ class CoAttLayer(nn.Module):
         super(CoAttLayer, self).__init__()
 
         self.all_attention = GAM(channel_in)
-        self.conv_output = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0) 
-        self.conv_transform = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0) 
+        self.conv_output = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0)
+        self.conv_transform = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0)
         self.fc_transform = nn.Linear(channel_in, channel_in)
-
-        for layer in [self.conv_output, self.conv_transform, self.fc_transform]:
-            weight_init.c2_msra_fill(layer)
     
     def forward(self, x):
         if self.training:
@@ -253,15 +255,12 @@ class GAM(nn.Module):
     def __init__(self, channel_in=512):
 
         super(GAM, self).__init__()
-        self.query_transform = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0) 
-        self.key_transform = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0) 
+        self.query_transform = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0)
+        self.key_transform = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0)
 
         self.scale = 1.0 / (channel_in ** 0.5)
 
-        self.conv6 = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0) 
-
-        for layer in [self.query_transform, self.key_transform, self.conv6]:
-            weight_init.c2_msra_fill(layer)
+        self.conv6 = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x5):
         # x: B,C,H,W

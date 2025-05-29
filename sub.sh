@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 module load compilers/cuda/11.1  compilers/gcc/9.3.0
 export PYTHONUNBUFFERED=1
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${HOME}/miniconda3/lib:/home/bingxing2/apps/cudnn/8.2.1.32_cuda11.x/lib64

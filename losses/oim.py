@@ -52,6 +52,7 @@ class OIMLoss(nn.Module):
         self.register_buffer("cq", torch.zeros(self.num_unlabeled, self.num_features))
 
         self.header_cq = 0
+        self.ignore_index = 5554
 
     def forward(self, inputs, roi_label):
         # merge into one batch, background label = 0
@@ -68,5 +69,8 @@ class OIMLoss(nn.Module):
         self.header_cq = (
             self.header_cq + (label >= self.num_pids).long().sum().item()
         ) % self.num_unlabeled
-        loss_oim = F.cross_entropy(projected, label, ignore_index=5554)
+        if label.min() == label.max() and label.max() == self.ignore_index:
+            loss_oim = projected.sum() * 0.0
+        else:
+            loss_oim = F.cross_entropy(projected, label, ignore_index=self.ignore_index)
         return loss_oim

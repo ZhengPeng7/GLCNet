@@ -32,7 +32,7 @@ This repo is the official implementation of "[**Global-Local Context Network for
 |                        TCTS                         |   93.9    |   95.1    |   46.8   |   87.5   |
 |   [AlignPS+](https://github.com/daodaofr/AlignPS)   |   94.0    |   94.5    |   46.1   |   82.1   |
 |   [SeqNet](https://github.com/serend1p1ty/SeqNet)   |   93.8    |   94.6    |   46.7   |   83.4   |
-|                     SeqNet+CBGM                     |   94.8    |   95.7    | **47.6** |   87.6   |
+|                     SeqNet+CBGM                     |   94.8    |   95.7    |   47.6   |   87.6   |
 |                       GLCNet                        |   95.5    |   96.1    |   46.7   |   84.9   |
 |                     GLCNet+CBGM                     | **95.8**  | **96.2**  | **47.8** | **87.8** |
 
@@ -47,7 +47,7 @@ This repo is the official implementation of "[**Global-Local Context Network for
 ### Env
 
 ```
-conda create -n glc python=3.8 -y && conda activate glc
+conda create -n glc python=3.10 -y && conda activate glc
 pip install -r requirements.txt
 ```
 
