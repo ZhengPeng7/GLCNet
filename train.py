@@ -10,7 +10,7 @@ from datasets import build_test_loader, build_train_loader
 from defaults import get_default_cfg
 from engine import evaluate_performance, train_one_epoch
 from models.glcnet import GLCNet
-from utils.utils import mkdir, resume_from_ckpt, save_on_master, set_random_seed
+from utils.utils import mkdir, load_weights, set_random_seed
 from config import Config
 
 
@@ -50,7 +50,7 @@ def main(args):
 
     if args.eval:
         assert args.ckpt, "--ckpt must be specified when --eval enabled"
-        resume_from_ckpt(args.ckpt, model, only_eval=True)
+        load_weights(args.ckpt, model)
         evaluate_performance(
             model,
             gallery_loader,
@@ -81,7 +81,7 @@ def main(args):
         assert args.ckpt, "--ckpt must be specified when --resume enabled"
         print('Resuming from', args.ckpt)
         # Resume from models pre-trained on MovieNet-PS. Otherwise, assign the return value to `start_epoch`.
-        _ = resume_from_ckpt(args.ckpt, model, optimizer, lr_scheduler) + 1
+        _ = load_weights(args.ckpt, model) + 1
 
     print("Creating output folder")
     output_dir = cfg.OUTPUT_DIR

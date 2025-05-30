@@ -1,6 +1,6 @@
 import math
 import sys
-import datetime
+import time
 from copy import deepcopy
 
 import torch
@@ -8,7 +8,7 @@ from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm
 
 from eval_func import eval_detection, eval_search_cuhk, eval_search_prw, eval_search_mvn
-from utils.utils import MetricLogger, SmoothedValue, mkdir, reduce_dict, warmup_lr_scheduler
+from utils.utils import MetricLogger, SmoothedValue, mkdir, warmup_lr_scheduler
 
 from config import ConfigMVN, Config
 
@@ -47,14 +47,12 @@ def train_one_epoch(cfg, model, optimizer, data_loader, device, epoch, lr_schedu
             losses = sum(loss_value for loss_name, loss_value in loss_dict.items() if loss_name == 'loss_box_reid')
         losses = sum(loss_value for _, loss_value in loss_dict.items())
 
-        # reduce losses over all GPUs for logging purposes
-        loss_dict_reduced = reduce_dict(loss_dict)
-        losses_reduced = sum(loss for loss in loss_dict_reduced.values())
+        losses_reduced = sum(loss for loss in loss_dict.values())
         loss_value = losses_reduced.item()
 
         if not math.isfinite(loss_value):
             print(f"Loss is {loss_value}, stopping training")
-            print(loss_dict_reduced)
+            print(loss_dict)
             sys.exit(1)
 
         optimizer.zero_grad()
@@ -66,11 +64,11 @@ def train_one_epoch(cfg, model, optimizer, data_loader, device, epoch, lr_schedu
         if epoch == 0:
             warmup_scheduler.step()
 
-        metric_logger.update(loss=loss_value, **loss_dict_reduced)
+        metric_logger.update(loss=loss_value, **loss_dict)
         metric_logger.update(lr=lr_scheduler.get_last_lr()[-1])
         if tfboard:
             iter = epoch * len(data_loader) + i
-            for k, v in loss_dict_reduced.items():
+            for k, v in loss_dict.items():
                 tfboard.add_scalars("train", {k: v}, iter)
 
 
@@ -96,10 +94,8 @@ def evaluate_performance(
         query_box_feats = eval_cache["query_box_feats"]
     else:
         gallery_dets, gallery_feats = [], []
-        time_now = str(datetime.datetime.now()); time_now = time_now.rstrip('.' + time_now.split('.')[-1])
-        print('Extracting gallery at {} ...'.format(time_now))
-        # for images, targets in tqdm(gallery_loader, ncols=0):
-        for images, targets in gallery_loader:
+        print(f'Extracting gallery at {time.asctime(time.gmtime())} ...')
+        for images, targets in tqdm(gallery_loader, ncols=0):
             images, targets = to_device(images, targets, device)
             if not use_gt:
                 outputs = model(images)
@@ -135,10 +131,8 @@ def evaluate_performance(
         # i.e. query person + surrounding people (context information)
         query_dets, query_feats = [], []
         if use_cbgm:
-            time_now = str(datetime.datetime.now()); time_now = time_now.rstrip('.' + time_now.split('.')[-1])
-            print('Extracting query context at {} ...'.format(time_now))
-            # for images, targets in tqdm(query_loader, ncols=0):
-            for images, targets in query_loader:
+            print(f'Extracting query context at {time.asctime(time.gmtime())} ...')
+            for images, targets in tqdm(query_loader, ncols=0):
                 images, targets = to_device(images, targets, device)
                 # targets will be modified in the model, so deepcopy it
                 outputs = model(images, deepcopy(targets), query_img_as_gallery=True)
@@ -156,16 +150,13 @@ def evaluate_performance(
 
         # extract the features of query boxes
         query_box_feats = []
-        time_now = str(datetime.datetime.now()); time_now = time_now.rstrip('.' + time_now.split('.')[-1])
-        print('Extracting query at {} ...'.format(time_now))
-        # for images, targets in tqdm(query_loader, ncols=0):
-        for images, targets in query_loader:
+        print(f'Extracting query at {time.asctime(time.gmtime())} ...')
+        for images, targets in tqdm(query_loader, ncols=0):
             images, targets = to_device(images, targets, device)
             embeddings = model(images, targets, query_img_as_gallery=False)
             assert len(embeddings) == 1, "batch size in test phase should be 1"
             query_box_feats.append(embeddings[0].cpu().numpy())
-        time_now = str(datetime.datetime.now()); time_now = time_now.rstrip('.' + time_now.split('.')[-1])
-        print('Finish feature extraction on gallery+query at {} .'.format(time_now))
+        print(f'Finish feature extraction on gallery+query at {time.asctime(time.gmtime())} .')
 
         mkdir("data/eval_cache")
         save_dict = {
@@ -176,42 +167,23 @@ def evaluate_performance(
             "query_box_feats": query_box_feats,
         }
         torch.save(save_dict, "data/eval_cache/eval_cache.pth")
+    eval_detection(gallery_loader.dataset, gallery_dets, det_thresh=0.01)
     try:
         eval_detection(gallery_loader.dataset, gallery_dets, det_thresh=0.01)
         if gallery_loader.dataset.name == "CUHK-SYSU":
             ret = eval_search_cuhk(
-                gallery_loader.dataset,
-                query_loader.dataset,
-                gallery_dets,
-                gallery_feats,
-                query_box_feats,
-                query_dets,
-                query_feats,
-                cbgm=use_cbgm,
-                gallery_size=100,
+                gallery_loader.dataset, query_loader.dataset, gallery_dets, gallery_feats, query_box_feats, query_dets, query_feats,
+                cbgm=use_cbgm, gallery_size=100,
             )
         elif gallery_loader.dataset.name == "PRW":
             ret = eval_search_prw(
-                gallery_loader.dataset,
-                query_loader.dataset,
-                gallery_dets,
-                gallery_feats,
-                query_box_feats,
-                query_dets,
-                query_feats,
+                gallery_loader.dataset, query_loader.dataset, gallery_dets, gallery_feats, query_box_feats, query_dets, query_feats,
                 cbgm=use_cbgm,
             )
         elif gallery_loader.dataset.name == "MVN":
             ret = eval_search_mvn(
-                gallery_loader.dataset,
-                query_loader.dataset,
-                gallery_dets,
-                gallery_feats,
-                query_box_feats,
-                query_dets,
-                query_feats,
-                cbgm=use_cbgm,
-                gallery_size=ConfigMVN().gallery_size,
+                gallery_loader.dataset, query_loader.dataset, gallery_dets, gallery_feats, query_box_feats, query_dets, query_feats,
+                cbgm=use_cbgm, gallery_size=ConfigMVN().gallery_size,
             )
         mAP = ret["mAP"]
         top1 = ret["accs"][0]

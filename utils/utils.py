@@ -211,6 +211,14 @@ def warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor):
     return torch.optim.lr_scheduler.LambdaLR(optimizer, f)
 
 
+def load_weights(ckpt_path, model):
+    state_dict = torch.load(ckpt_path, map_location='cpu', weights_only=True)
+    state_dict = check_state_dict(state_dict)
+    model.load_state_dict(state_dict)
+    epoch = os.path.splitext(os.path.basename(ckpt_path))[0].split('epoch_')[1].split('-')[0]
+    return epoch
+
+
 def resume_from_ckpt(ckpt_path, model, optimizer=None, lr_scheduler=None, only_eval=False):
     if only_eval:
         state_dict = torch.load(ckpt_path, map_location='cpu', weights_only=True)

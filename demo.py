@@ -9,7 +9,7 @@ from torchvision.transforms import functional as F
 
 from defaults import get_default_cfg
 from models.glcnet import GLCNet
-from utils.utils import resume_from_ckpt
+from utils.utils import load_weights
 
 
 def visualize_result(img_path, detections, similarities):
@@ -54,7 +54,7 @@ def main(args):
     model.to(device)
     model.eval()
 
-    resume_from_ckpt(args.ckpt, model, only_eval=True)
+    load_weights(args.ckpt, model)
 
     query_img = [F.to_tensor(Image.open("demo_imgs/query.jpg").convert("RGB")).to(device)]
     query_target = [{"boxes": torch.tensor([[0, 0, 466, 943]]).to(device)}]
