@@ -18,8 +18,8 @@ class OIM(autograd.Function):
         grad_inputs = None
         if ctx.needs_input_grad[0]:
             grad_inputs = grad_outputs.mm(torch.cat([lut, cq], dim=0))
-            if grad_inputs.dtype == torch.float16:
-                grad_inputs = grad_inputs.to(torch.float32)
+            # if grad_inputs.dtype == torch.float16:
+            #     grad_inputs = grad_inputs.to(torch.float32)
 
         for x, y in zip(inputs, targets):
             if y < len(lut):

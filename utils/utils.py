@@ -24,7 +24,7 @@ class SmoothedValue(object):
 
     def __init__(self, window_size=20, fmt=None):
         if fmt is None:
-            fmt = "{median:.3f} ({global_avg:.3f})"
+            fmt = "{median:.2f}"
         self.deque = deque(maxlen=window_size)
         self.total = 0.0
         self.count = 0

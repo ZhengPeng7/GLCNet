@@ -135,7 +135,7 @@ def main(args):
         if mAP_top1 > max(mAP_top1_lst[:-1]):
             print('Saving the best model with mAP={:.3f}, top-1={:.3f} ...'.format(mAP, top1))
             torch.save(model.state_dict(), os.path.join(output_dir, "epoch_best.pth"))
-        torch.save(model.state_dict(), os.path.join(output_dir, f"epoch_{epoch}.pth"))
+        torch.save(model.state_dict(), os.path.join(output_dir, f"epoch_last.pth"))
 
     if tfboard:
         tfboard.close()
