@@ -10,7 +10,6 @@ from collections import defaultdict, deque
 
 import numpy as np
 import torch
-import torch.distributed as dist
 from tabulate import tabulate
 
 
@@ -35,19 +34,6 @@ class SmoothedValue(object):
         self.deque.append(value)
         self.count += n
         self.total += value * n
-
-    def synchronize_between_processes(self):
-        """
-        Warning: does not synchronize the deque!
-        """
-        if not is_dist_avail_and_initialized():
-            return
-        t = torch.tensor([self.count, self.total], dtype=torch.float64, device="cuda")
-        dist.barrier()
-        dist.all_reduce(t)
-        t = t.tolist()
-        self.count = int(t[0])
-        self.total = t[1]
 
     @property
     def median(self):
@@ -106,10 +92,6 @@ class MetricLogger(object):
             loss_str.append("{}: {}".format(name, str(meter)))
         return self.delimiter.join(loss_str)
 
-    def synchronize_between_processes(self):
-        for meter in self.meters.values():
-            meter.synchronize_between_processes()
-
     def add_meter(self, name, meter):
         self.meters[name] = meter
 
@@ -135,8 +117,8 @@ class MetricLogger(object):
             yield obj
             iter_time.update(time.time() - end)
             if i % print_freq == 0 or i == len(iterable) - 1:
-                time_now = str(datetime.datetime.now())
-                time_now = time_now.rstrip('.' + time_now.split('.')[-1])
+                # time_now = str(datetime.datetime.now())
+                time_now = time.asctime(time.gmtime())
                 print(
                     log_msg.format(
                         i,
@@ -154,155 +136,6 @@ class MetricLogger(object):
                 header, total_time_str, total_time / len(iterable)
             )
         )
-
-
-# -------------------------------------------------------- #
-#                   Distributed training                   #
-# -------------------------------------------------------- #
-def all_gather(data):
-    """
-    Run all_gather on arbitrary picklable data (not necessarily tensors)
-
-    Args:
-        data: any picklable object
-
-    Returns:
-        list[data]: list of data gathered from each rank
-    """
-    world_size = get_world_size()
-    if world_size == 1:
-        return [data]
-
-    # serialized to a Tensor
-    buffer = pickle.dumps(data)
-    storage = torch.ByteStorage.from_buffer(buffer)
-    tensor = torch.ByteTensor(storage).to("cuda")
-
-    # obtain Tensor size of each rank
-    local_size = torch.tensor([tensor.numel()], device="cuda")
-    size_list = [torch.tensor([0], device="cuda") for _ in range(world_size)]
-    dist.all_gather(size_list, local_size)
-    size_list = [int(size.item()) for size in size_list]
-    max_size = max(size_list)
-
-    # receiving Tensor from all ranks
-    # we pad the tensor because torch all_gather does not support
-    # gathering tensors of different shapes
-    tensor_list = []
-    for _ in size_list:
-        tensor_list.append(torch.empty((max_size,), dtype=torch.uint8, device="cuda"))
-    if local_size != max_size:
-        padding = torch.empty(size=(max_size - local_size,), dtype=torch.uint8, device="cuda")
-        tensor = torch.cat((tensor, padding), dim=0)
-    dist.all_gather(tensor_list, tensor)
-
-    data_list = []
-    for size, tensor in zip(size_list, tensor_list):
-        buffer = tensor.cpu().numpy().tobytes()[:size]
-        data_list.append(pickle.loads(buffer))
-
-    return data_list
-
-
-def reduce_dict(input_dict, average=True):
-    """
-    Reduce the values in the dictionary from all processes so that all processes
-    have the averaged results. Returns a dict with the same fields as
-    input_dict, after reduction.
-
-    Args:
-        input_dict (dict): all the values will be reduced
-        average (bool): whether to do average or sum
-    """
-    world_size = get_world_size()
-    if world_size < 2:
-        return input_dict
-    with torch.no_grad():
-        names = []
-        values = []
-        # sort the keys so that they are consistent across processes
-        for k in sorted(input_dict.keys()):
-            names.append(k)
-            values.append(input_dict[k])
-        values = torch.stack(values, dim=0)
-        dist.all_reduce(values)
-        if average:
-            values /= world_size
-        reduced_dict = {k: v for k, v in zip(names, values)}
-    return reduced_dict
-
-
-def setup_for_distributed(is_master):
-    """
-    This function disables printing when not in master process
-    """
-    import builtins as __builtin__
-
-    builtin_print = __builtin__.print
-
-    def print(*args, **kwargs):
-        force = kwargs.pop("force", False)
-        if is_master or force:
-            builtin_print(*args, **kwargs)
-
-    __builtin__.print = print
-
-
-def is_dist_avail_and_initialized():
-    if not dist.is_available():
-        return False
-    if not dist.is_initialized():
-        return False
-    return True
-
-
-def get_world_size():
-    if not is_dist_avail_and_initialized():
-        return 1
-    return dist.get_world_size()
-
-
-def get_rank():
-    if not is_dist_avail_and_initialized():
-        return 0
-    return dist.get_rank()
-
-
-def is_main_process():
-    return get_rank() == 0
-
-
-def save_on_master(*args, **kwargs):
-    if is_main_process():
-        torch.save(*args, **kwargs)
-
-
-def init_distributed_mode(args):
-    if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
-        args.rank = int(os.environ["RANK"])
-        args.world_size = int(os.environ["WORLD_SIZE"])
-        args.gpu = int(os.environ["LOCAL_RANK"])
-    elif "SLURM_PROCID" in os.environ:
-        args.rank = int(os.environ["SLURM_PROCID"])
-        args.gpu = args.rank % torch.cuda.device_count()
-    else:
-        print("Not using distributed mode")
-        args.distributed = False
-        return
-
-    args.distributed = True
-
-    torch.cuda.set_device(args.gpu)
-    args.dist_backend = "nccl"
-    print("| distributed init (rank {}): {}".format(args.rank, args.dist_url), flush=True)
-    torch.distributed.init_process_group(
-        backend=args.dist_backend,
-        init_method=args.dist_url,
-        world_size=args.world_size,
-        rank=args.rank,
-    )
-    torch.distributed.barrier()
-    setup_for_distributed(args.rank == 0)
 
 
 # -------------------------------------------------------- #
@@ -378,19 +211,26 @@ def warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor):
     return torch.optim.lr_scheduler.LambdaLR(optimizer, f)
 
 
-def resume_from_ckpt(ckpt_path, model, optimizer=None, lr_scheduler=None):
-    ckpt = torch.load(ckpt_path)
-    my_state_dict = model.state_dict()
-    kv_to_be_updated = {k: v for (k, v) in ckpt["model"].items() if 'reid_loss' not in k}
-    my_state_dict.update(kv_to_be_updated)
-    model.load_state_dict(my_state_dict, strict=False)
-    if optimizer is not None:
-        optimizer.load_state_dict(ckpt["optimizer"])
-    if lr_scheduler is not None:
-        lr_scheduler.load_state_dict(ckpt["lr_scheduler"])
-    print(f"loaded checkpoint {ckpt_path}")
-    print(f"model was trained for {ckpt['epoch']} epochs")
-    return ckpt["epoch"]
+def resume_from_ckpt(ckpt_path, model, optimizer=None, lr_scheduler=None, only_eval=False):
+    if only_eval:
+        state_dict = torch.load(ckpt_path, map_location='cpu', weights_only=True)
+        state_dict = check_state_dict(state_dict)
+        model.load_state_dict(state_dict)
+        print(f"loaded checkpoint {ckpt_path}.")
+        return 0
+    else:
+        ckpt = torch.load(ckpt_path)
+        my_state_dict = model.state_dict()
+        kv_to_be_updated = {k: v for (k, v) in ckpt["model"].items() if 'reid_loss' not in k}
+        my_state_dict.update(kv_to_be_updated)
+        model.load_state_dict(my_state_dict, strict=False)
+        if optimizer is not None:
+            optimizer.load_state_dict(ckpt["optimizer"])
+        if lr_scheduler is not None:
+            lr_scheduler.load_state_dict(ckpt["lr_scheduler"])
+        print(f"loaded checkpoint {ckpt_path}.")
+        print(f"model was trained for {ckpt['epoch']} epochs.")
+        return ckpt["epoch"]
 
 
 def set_random_seed(seed):
@@ -402,3 +242,13 @@ def set_random_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
+
+
+def check_state_dict(state_dict, unwanted_prefixes=['module.', '_orig_mod.']):
+    for k, v in list(state_dict.items()):
+        prefix_length = 0
+        for unwanted_prefix in unwanted_prefixes:
+            if k[prefix_length:].startswith(unwanted_prefix):
+                prefix_length += len(unwanted_prefix)
+        state_dict[k[prefix_length:]] = state_dict.pop(k)
+    return state_dict

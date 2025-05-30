@@ -50,14 +50,14 @@ def main(args):
 
     if args.eval:
         assert args.ckpt, "--ckpt must be specified when --eval enabled"
-        resume_from_ckpt(args.ckpt, model)
+        resume_from_ckpt(args.ckpt, model, only_eval=True)
         evaluate_performance(
             model,
             gallery_loader,
             query_loader,
             device,
             use_gt=cfg.EVAL_USE_GT,
-            use_cache=cfg.EVAL_USE_CACHE,
+            use_cache=True,
             use_cbgm=cfg.EVAL_USE_CBGM,
         )
         exit(0)
@@ -124,24 +124,18 @@ def main(args):
                 query_loader,
                 device,
                 use_gt=cfg.EVAL_USE_GT,
-                use_cache=cfg.EVAL_USE_CACHE,
+                use_cache=False,    # Set to True to load cached features for a faster debugging in evaluation.
                 use_cbgm=cfg.EVAL_USE_CBGM,
             )
         else:
             mAP, top1 = 0, 0
         mAP_top1 = mAP + top1 * 0.5     # mAP is more important
         mAP_top1_lst.append(mAP_top1)
+        print(f'mAP_top1_lst: {mAP_top1_lst}.')
         if mAP_top1 > max(mAP_top1_lst[:-1]):
             print('Saving the best model with mAP={:.3f}, top-1={:.3f} ...'.format(mAP, top1))
-            save_on_master(
-                {
-                    "model": model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
-                    "lr_scheduler": lr_scheduler.state_dict(),
-                    "epoch": epoch,
-                },
-                [os.path.join(output_dir, f"epoch_{epoch}.pth"), os.path.join(output_dir, "epoch_best.pth")][1],
-            )
+            torch.save(model.state_dict(), os.path.join(output_dir, "epoch_best.pth"))
+        torch.save(model.state_dict(), os.path.join(output_dir, f"epoch_{epoch}.pth"))
 
     if tfboard:
         tfboard.close()

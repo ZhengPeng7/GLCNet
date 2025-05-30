@@ -54,7 +54,7 @@ def main(args):
     model.to(device)
     model.eval()
 
-    resume_from_ckpt(args.ckpt, model)
+    resume_from_ckpt(args.ckpt, model, only_eval=True)
 
     query_img = [F.to_tensor(Image.open("demo_imgs/query.jpg").convert("RGB")).to(device)]
     query_target = [{"boxes": torch.tensor([[0, 0, 466, 943]]).to(device)}]

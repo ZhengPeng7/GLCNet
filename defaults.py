@@ -123,8 +123,6 @@ _C.MODEL.LOSS.OIM_SCALAR = 30.0
 _C.EVAL_PERIOD = 1
 # Evaluation with GT boxes to verify the upper bound of person search performance
 _C.EVAL_USE_GT = False
-# Fast evaluation with cached features
-_C.EVAL_USE_CACHE = False
 # Evaluation with Context Bipartite Graph Matching (CBGM) algorithm
 _C.EVAL_USE_CBGM = False
 

@@ -88,7 +88,7 @@ def evaluate_performance(
     """
     model.eval()
     if use_cache:
-        eval_cache = torch.load("data/eval_cache/eval_cache.pth")
+        eval_cache = torch.load("data/eval_cache/eval_cache.pth", weights_only=False)
         gallery_dets = eval_cache["gallery_dets"]
         gallery_feats = eval_cache["gallery_feats"]
         query_dets = eval_cache["query_dets"]
@@ -176,7 +176,6 @@ def evaluate_performance(
             "query_box_feats": query_box_feats,
         }
         torch.save(save_dict, "data/eval_cache/eval_cache.pth")
-
     try:
         eval_detection(gallery_loader.dataset, gallery_dets, det_thresh=0.01)
         if gallery_loader.dataset.name == "CUHK-SYSU":

@@ -9,7 +9,7 @@ class Config():
     def __init__(self) -> None:
         # Training
         self.precisionHigh = True
-        self.compile = False    # 5090, CUHK, 1 epoch, bs = 3 -- True: 20:00 + 24.70GB, False: 21.5m + 26.86GB
+        self.compile = False    # 5090 + CUHK + epoch=1 + bs=3 -- True: 20:00 + 24.70GB, False: 21.5m + 26.86GB
 
         self.multi_part_matching = True    # 1.1 min for 200 steps w/ False.
         self.mps_channels = [None, 256][0]
