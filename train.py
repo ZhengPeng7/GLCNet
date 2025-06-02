@@ -111,11 +111,11 @@ def main(args):
             epoch >= cfg.SOLVER.MAX_EPOCHS or
             (
                 epoch % cfg.EVAL_PERIOD == 0 and
-                epoch > max(cfg.SOLVER.LR_DECAY_MILESTONES[-1], cfg.SOLVER.MAX_EPOCHS-5)
+                epoch > min(cfg.SOLVER.LR_DECAY_MILESTONES[0], cfg.SOLVER.MAX_EPOCHS-5)
             ) or
             (
                 'MVN' in cfg.INPUT.DATASET and
-                (epoch % 5 == 0 or epoch > max(cfg.SOLVER.LR_DECAY_MILESTONES[-1], cfg.SOLVER.MAX_EPOCHS-10))
+                (epoch % 5 == 0 or epoch > min(cfg.SOLVER.LR_DECAY_MILESTONES[0], cfg.SOLVER.MAX_EPOCHS-10))
             )
         ):
             mAP, top1 = evaluate_performance(
