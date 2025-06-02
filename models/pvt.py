@@ -48,9 +48,9 @@ def build_pvt(weights='b2'):
     elif 'b0' in weights:
         bb_model = pvt_v2_b0()
     if weights:
-        save_model = torch.load(weights, map_location='cpu')
+        bb_state_dict = torch.load(weights, map_location='cpu', weights_only=True)
         model_dict = bb_model.state_dict()
-        state_dict = {k: v for k, v in save_model.items() if k in model_dict.keys()}
+        state_dict = {k: v for k, v in bb_state_dict.items() if k in model_dict.keys()}
         model_dict.update(state_dict)
         bb_model.load_state_dict(model_dict)
 

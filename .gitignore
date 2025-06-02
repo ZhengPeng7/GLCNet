@@ -1,4 +1,5 @@
 # Customed
+tmp*
 data/
 exp_*
 *.out*
