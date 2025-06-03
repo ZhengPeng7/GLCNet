@@ -8,15 +8,190 @@ import torch.utils.data
 
 from datasets import build_test_loader, build_train_loader
 from defaults import get_default_cfg
-from engine import evaluate_performance, train_one_epoch
 from models.glcnet import GLCNet
 from utils.utils import mkdir, load_weights, set_random_seed
-from config import Config
+from config import Config, ConfigMVN
 
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 config = Config()
+import accelerate
+accelerator = accelerate.Accelerator(
+    mixed_precision=config.mixed_precision,
+    gradient_accumulation_steps=1,
+    kwargs_handlers=[
+        accelerate.utils.InitProcessGroupKwargs(backend="nccl", timeout=datetime.timedelta(seconds=3600)),
+        accelerate.utils.DistributedDataParallelKwargs(find_unused_parameters=False),
+        accelerate.utils.GradScalerKwargs(backoff_factor=0.5)],
+)
+
+import sys
+from copy import deepcopy
+from tqdm import tqdm
+from eval_func import eval_detection, eval_search_cuhk, eval_search_prw, eval_search_mvn
+from utils.utils import MetricLogger, SmoothedValue, mkdir, warmup_lr_scheduler
+
+def train_one_epoch(cfg, model, optimizer, data_loader, device, epoch, lr_scheduler, tfboard=None):
+    model.train()
+    metric_logger = MetricLogger(delimiter="  ")
+    metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
+    header = "Epoch: [{}]".format(epoch)
+
+    # warmup learning rate in the first epoch
+    if epoch == 0:
+        warmup_factor = 1.0 / 1000
+        # FIXME: min(1000, len(data_loader) - 1)
+        warmup_iters = len(data_loader) - 1
+        warmup_scheduler = warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
+
+    for i, (images, targets) in enumerate(
+        metric_logger.log_every(data_loader, cfg.DISP_PERIOD, header)
+    ):
+        with accelerator.autocast():
+            loss_dict = model(images, targets)
+            loss = sum(loss_v for loss_v in loss_dict.values())
+            loss_value = loss.item()
+        accelerator.backward(loss)
+
+        with accelerator.accumulate(model):
+            accelerator.clip_grad_value_(model.parameters(), cfg.SOLVER.CLIP_GRADIENTS if cfg.SOLVER.CLIP_GRADIENTS > 0 else 1.0)
+            optimizer.step()
+            optimizer.zero_grad()
+
+        if epoch == 0:
+            warmup_scheduler.step()
+
+        metric_logger.update(loss=loss_value, **loss_dict)
+        metric_logger.update(lr=lr_scheduler.get_last_lr()[-1])
+        if tfboard:
+            iter = epoch * len(data_loader) + i
+            for k, v in loss_dict.items():
+                tfboard.add_scalars("train", {k: v}, iter)
+
+
+@torch.no_grad()
+def evaluate_performance(
+    model, gallery_loader, query_loader, device, use_gt=False, use_cache=False, use_cbgm=False
+):
+    """
+    Args:
+        use_gt (bool, optional): Whether to use GT as detection results to verify the upper
+                                bound of person search performance. Defaults to False.
+        use_cache (bool, optional): Whether to use the cached features. Defaults to False.
+        use_cbgm (bool, optional): Whether to use Context Bipartite Graph Matching algorithm.
+                                Defaults to False.
+    """
+    model.eval()
+    if use_cache:
+        eval_cache = torch.load("data/eval_cache/eval_cache.pth", weights_only=False)
+        gallery_dets = eval_cache["gallery_dets"]
+        gallery_feats = eval_cache["gallery_feats"]
+        query_dets = eval_cache["query_dets"]
+        query_feats = eval_cache["query_feats"]
+        query_box_feats = eval_cache["query_box_feats"]
+    else:
+        gallery_dets, gallery_feats = [], []
+        print(f'Extracting gallery at {time.asctime(time.gmtime())} ...')
+        for images, targets in tqdm(gallery_loader, ncols=0):
+            if not use_gt:
+                with accelerator.autocast():
+                    outputs = model(images)
+            else:
+                boxes = targets[0]["boxes"]
+                n_boxes = boxes.size(0)
+                with accelerator.autocast():
+                    embeddings = model(images, targets)
+                outputs = [
+                    {
+                        "boxes": boxes,
+                        "embeddings": torch.cat(embeddings),
+                        "labels": torch.ones(n_boxes).to(device),
+                        "scores": torch.ones(n_boxes).to(device),
+                    }
+                ]
+
+            for images, output in zip(images, outputs):
+                expand_ratio = 0
+                if expand_ratio:
+                    for idx_box, (box, image) in enumerate(zip(output["boxes"], images)):
+                        x1, y1, x2, y2 = box
+                        hei_image, wid_image = image.shape[-2:]
+                        wid, hei = (x2 - x1) / 2, (y2 - y1) / 2
+                        output["boxes"][idx_box][0] = max(0, x1 - wid * expand_ratio)
+                        output["boxes"][idx_box][1] = max(0, y1 - wid * expand_ratio)
+                        output["boxes"][idx_box][2] = min(wid_image-1, x2 + hei * expand_ratio)
+                        output["boxes"][idx_box][3] = min(hei_image-1, y2 + hei * expand_ratio)
+                box_w_scores = torch.cat([output["boxes"], output["scores"].unsqueeze(1)], dim=1)
+                gallery_dets.append(box_w_scores.cpu().numpy())
+                gallery_feats.append(output["embeddings"].cpu().numpy())
+
+        # regarding query image as gallery to detect all people
+        # i.e. query person + surrounding people (context information)
+        query_dets, query_feats = [], []
+        if use_cbgm:
+            print(f'Extracting query context at {time.asctime(time.gmtime())} ...')
+            for images, targets in tqdm(query_loader, ncols=0):
+                # targets will be modified in the model, so deepcopy it
+                with accelerator.autocast():
+                    outputs = model(images, deepcopy(targets), query_img_as_gallery=True)
+
+                # consistency check
+                gt_box = targets[0]["boxes"].squeeze()
+                assert (
+                    gt_box - outputs[0]["boxes"][0]
+                ).sum() <= 0.001, "GT box must be the first one in the detected boxes of query image"
+
+                for output in outputs:
+                    box_w_scores = torch.cat([output["boxes"], output["scores"].unsqueeze(1)], dim=1)
+                    query_dets.append(box_w_scores.cpu().numpy())
+                    query_feats.append(output["embeddings"].cpu().numpy())
+
+        # extract the features of query boxes
+        query_box_feats = []
+        print(f'Extracting query at {time.asctime(time.gmtime())} ...')
+        for images, targets in tqdm(query_loader, ncols=0):
+            with accelerator.autocast():
+                embeddings = model(images, targets, query_img_as_gallery=False)
+            assert len(embeddings) == 1, "batch size in test phase should be 1"
+            query_box_feats.append(embeddings[0].cpu().numpy())
+        print(f'Finish feature extraction on gallery+query at {time.asctime(time.gmtime())} .')
+
+        mkdir("data/eval_cache")
+        save_dict = {
+            "gallery_dets": gallery_dets,
+            "gallery_feats": gallery_feats,
+            "query_dets": query_dets,
+            "query_feats": query_feats,
+            "query_box_feats": query_box_feats,
+        }
+        torch.save(save_dict, "data/eval_cache/eval_cache.pth")
+    eval_detection(gallery_loader.dataset, gallery_dets, det_thresh=0.01)
+    try:
+        eval_detection(gallery_loader.dataset, gallery_dets, det_thresh=0.01)
+        if gallery_loader.dataset.name == "CUHK-SYSU":
+            ret = eval_search_cuhk(
+                gallery_loader.dataset, query_loader.dataset, gallery_dets, gallery_feats, query_box_feats, query_dets, query_feats,
+                cbgm=use_cbgm, gallery_size=100,
+            )
+        elif gallery_loader.dataset.name == "PRW":
+            ret = eval_search_prw(
+                gallery_loader.dataset, query_loader.dataset, gallery_dets, gallery_feats, query_box_feats, query_dets, query_feats,
+                cbgm=use_cbgm,
+            )
+        elif gallery_loader.dataset.name == "MVN":
+            ret = eval_search_mvn(
+                gallery_loader.dataset, query_loader.dataset, gallery_dets, gallery_feats, query_box_feats, query_dets, query_feats,
+                cbgm=use_cbgm, gallery_size=ConfigMVN().gallery_size,
+            )
+        mAP = ret["mAP"]
+        top1 = ret["accs"][0]
+    except Exception as e:
+        print(f"{type(e).__name__} at line {e.__traceback__.tb_lineno} of {__file__}: {e}")
+        mAP = 0
+        top1 = 0
+    return mAP, top1
+
 
 def main(args):
     cfg = get_default_cfg()
@@ -71,6 +246,9 @@ def main(args):
         momentum=cfg.SOLVER.SGD_MOMENTUM,
         weight_decay=cfg.SOLVER.WEIGHT_DECAY,
     )
+
+    # accelerate preparation
+    train_loader, gallery_loader, query_loader, model, optimizer = accelerator.prepare(train_loader, gallery_loader, query_loader, model, optimizer)
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=cfg.SOLVER.LR_DECAY_MILESTONES, gamma=0.1

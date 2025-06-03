@@ -10,6 +10,7 @@ class Config():
         # Training
         self.precisionHigh = True
         self.compile = False    # 5090 + CUHK + epoch=1 + bs=3 -- True: 20:00 + 24.70GB, False: 21.5m + 26.86GB
+        self.mixed_precision = ['bf16', 'fp16', 'no'][1]
 
         self.multi_part_matching = True    # 1.1 min for 200 steps w/ False.
         self.mps_channels = [None, 256][0]
@@ -49,7 +50,6 @@ class Config():
         self.cxt_group_len = self.bb_out_channels[1] * int(self.cxt_group_enabled)     # feat-res5
 
         self.seq_head = True
-        self.ignore_det_last_epochs = False
         self.nae_mix_res3 = True
         self.nae_multi = True
         self.nae_feature_seperate = True

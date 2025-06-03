@@ -17,9 +17,7 @@ class OIM(autograd.Function):
 
         grad_inputs = None
         if ctx.needs_input_grad[0]:
-            grad_inputs = grad_outputs.mm(torch.cat([lut, cq], dim=0))
-            # if grad_inputs.dtype == torch.float16:
-            #     grad_inputs = grad_inputs.to(torch.float32)
+            grad_inputs = grad_outputs.mm(torch.cat([lut, cq], dim=0).to(grad_outputs.dtype))
 
         for x, y in zip(inputs, targets):
             if y < len(lut):
@@ -65,6 +63,8 @@ class OIMLoss(nn.Module):
         self.header_cq = (
             self.header_cq + (label >= self.num_pids).long().sum().item()
         ) % self.num_unlabeled
+        # the return value of cross_entropy() in pytorch was changed from `0.0 to nan` when target.numel() == 0.
+        # reference: https://github.com/pytorch/pytorch/issues/50224
         if label.min() == label.max() and label.max() == self.ignore_index:
             loss_oim = projected.sum() * 0.0
         else:
