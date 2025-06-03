@@ -101,7 +101,7 @@ def main(args):
 
     print("Start training")
     start_time = time.time()
-    mAP_top1_lst = [0]
+    mAP_top1_lst = []
     for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS+1):
         print('Epoch {}:'.format(epoch))
         train_one_epoch(cfg, model, optimizer, train_loader, device, epoch, lr_scheduler, tfboard)
@@ -111,11 +111,11 @@ def main(args):
             epoch >= cfg.SOLVER.MAX_EPOCHS or
             (
                 epoch % cfg.EVAL_PERIOD == 0 and
-                epoch > min(cfg.SOLVER.LR_DECAY_MILESTONES[0], cfg.SOLVER.MAX_EPOCHS-5)
+                epoch >= min(cfg.SOLVER.LR_DECAY_MILESTONES[0], cfg.SOLVER.MAX_EPOCHS-5)
             ) or
             (
                 'MVN' in cfg.INPUT.DATASET and
-                (epoch % 5 == 0 or epoch > min(cfg.SOLVER.LR_DECAY_MILESTONES[0], cfg.SOLVER.MAX_EPOCHS-10))
+                (epoch % 5 == 0 or epoch >= min(cfg.SOLVER.LR_DECAY_MILESTONES[0], cfg.SOLVER.MAX_EPOCHS-10))
             )
         ):
             mAP, top1 = evaluate_performance(
