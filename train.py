@@ -310,7 +310,7 @@ def main(args):
         mAP_top1 = mAP + top1 * 0.5     # mAP is more important
         mAP_top1_lst.append(mAP_top1)
         print(f'mAP_top1_lst: {mAP_top1_lst}.')
-        if mAP_top1 > max(mAP_top1_lst[:-1]):
+        if mAP_top1 > max(mAP_top1_lst[:-1] + [0]):
             print('Saving the best model with mAP={:.3f}, top-1={:.3f} ...'.format(mAP, top1))
             torch.save(model.state_dict(), os.path.join(output_dir, "epoch_best.pth"))
         torch.save(model.state_dict(), os.path.join(output_dir, f"epoch_last.pth"))
