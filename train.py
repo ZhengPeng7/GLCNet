@@ -26,7 +26,6 @@ accelerator = accelerate.Accelerator(
         accelerate.utils.GradScalerKwargs(backoff_factor=0.5)],
 )
 
-import sys
 from copy import deepcopy
 from tqdm import tqdm
 from eval_func import eval_detection, eval_search_cuhk, eval_search_prw, eval_search_mvn
@@ -166,7 +165,6 @@ def evaluate_performance(
             "query_box_feats": query_box_feats,
         }
         torch.save(save_dict, "data/eval_cache/eval_cache.pth")
-    eval_detection(gallery_loader.dataset, gallery_dets, det_thresh=0.01)
     try:
         eval_detection(gallery_loader.dataset, gallery_dets, det_thresh=0.01)
         if gallery_loader.dataset.name == "CUHK-SYSU":
