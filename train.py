@@ -31,14 +31,14 @@ from tqdm import tqdm
 from eval_func import eval_detection, eval_search_cuhk, eval_search_prw, eval_search_mvn
 from utils.utils import MetricLogger, SmoothedValue, mkdir, warmup_lr_scheduler
 
-def train_one_epoch(cfg, model, optimizer, data_loader, device, epoch, lr_scheduler, tfboard=None):
+def train_one_epoch(cfg, model, optimizer, data_loader, epoch, lr_scheduler, tfboard=None):
     model.train()
     metric_logger = MetricLogger(delimiter="  ")
     metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
     header = "Epoch: [{}]".format(epoch)
 
     # warmup learning rate in the first epoch
-    if epoch == 0:
+    if epoch <= 1:
         warmup_factor = 1.0 / 1000
         # FIXME: min(1000, len(data_loader) - 1)
         warmup_iters = len(data_loader) - 1
@@ -58,13 +58,13 @@ def train_one_epoch(cfg, model, optimizer, data_loader, device, epoch, lr_schedu
             optimizer.step()
             optimizer.zero_grad()
 
-        if epoch == 0:
+        if epoch <= 1:
             warmup_scheduler.step()
 
         metric_logger.update(loss=loss_value, **loss_dict)
         metric_logger.update(lr=lr_scheduler.get_last_lr()[-1])
         if tfboard:
-            iter = epoch * len(data_loader) + i
+            iter = (epoch - 1) * len(data_loader) + i
             for k, v in loss_dict.items():
                 tfboard.add_scalars("train", {k: v}, iter)
 
@@ -280,7 +280,7 @@ def main(args):
     mAP_top1_lst = []
     for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS+1):
         print('Epoch {}:'.format(epoch))
-        train_one_epoch(cfg, model, optimizer, train_loader, device, epoch, lr_scheduler, tfboard)
+        train_one_epoch(cfg, model, optimizer, train_loader, epoch, lr_scheduler, tfboard)
         lr_scheduler.step()
 
         if(

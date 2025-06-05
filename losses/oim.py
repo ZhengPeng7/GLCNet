@@ -1,7 +1,10 @@
 import torch
 import torch.nn.functional as F
 from torch import autograd, nn
+from config import Config
 
+
+config = Config()
 
 class OIM(autograd.Function):
     @staticmethod
@@ -17,7 +20,7 @@ class OIM(autograd.Function):
 
         grad_inputs = None
         if ctx.needs_input_grad[0]:
-            grad_inputs = grad_outputs.mm(torch.cat([lut, cq], dim=0).to(grad_outputs.dtype))
+            grad_inputs = grad_outputs.mm(torch.cat([lut, cq], dim=0))
 
         for x, y in zip(inputs, targets):
             if y < len(lut):
@@ -41,9 +44,15 @@ class OIMLoss(nn.Module):
         self.num_unlabeled = num_cq_size
         self.momentum = oim_momentum
         self.oim_scalar = oim_scalar
+        if config.mixed_precision == 'bf16':
+            self.model_dtype = torch.bfloat16
+        elif config.mixed_precision == 'fp16':
+            self.model_dtype = torch.float16
+        else:
+            self.model_dtype = torch.float32
 
-        self.register_buffer("lut", torch.zeros(self.num_pids, self.num_features))
-        self.register_buffer("cq", torch.zeros(self.num_unlabeled, self.num_features))
+        self.register_buffer("lut", torch.zeros(self.num_pids, self.num_features, dtype=self.model_dtype))
+        self.register_buffer("cq", torch.zeros(self.num_unlabeled, self.num_features, dtype=self.model_dtype))
 
         self.header_cq = 0
         self.ignore_index = 5554
