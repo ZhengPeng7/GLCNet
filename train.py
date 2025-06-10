@@ -31,9 +31,9 @@ from tqdm import tqdm
 from eval_func import eval_detection, eval_search_cuhk, eval_search_prw, eval_search_mvn
 from utils.utils import MetricLogger, SmoothedValue, mkdir, warmup_lr_scheduler
 
-def train_one_epoch(cfg, model, optimizer, data_loader, epoch, lr_scheduler, tfboard=None):
+def train_one_epoch(cfg, model, optimizer, data_loader, epoch, lr_scheduler, output_dir, tfboard=None):
     model.train()
-    metric_logger = MetricLogger(delimiter="  ")
+    metric_logger = MetricLogger(delimiter="  ", log_file=os.path.join(output_dir, 'training.log'))
     metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
     header = "Epoch: [{}]".format(epoch)
 
@@ -280,7 +280,7 @@ def main(args):
     mAP_top1_lst = []
     for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS+1):
         print('Epoch {}:'.format(epoch))
-        train_one_epoch(cfg, model, optimizer, train_loader, epoch, lr_scheduler, tfboard)
+        train_one_epoch(cfg, model, optimizer, train_loader, epoch, lr_scheduler, output_dir, tfboard)
         lr_scheduler.step()
 
         if(
@@ -309,7 +309,7 @@ def main(args):
         mAP_top1_lst.append(mAP_top1)
         print(f'mAP_top1_lst: {mAP_top1_lst}.')
         if mAP_top1 > max(mAP_top1_lst[:-1] + [0]):
-            print('Saving the best model with mAP={:.3f}, top-1={:.3f} ...'.format(mAP, top1))
+            print('Saving the best model with mAP={:.3f}, top-1={:.3f} ...'.format(round(mAP, 3), round(top1, 3)))
             torch.save(model.state_dict(), os.path.join(output_dir, "epoch_best.pth"))
         torch.save(model.state_dict(), os.path.join(output_dir, f"epoch_last.pth"))
 

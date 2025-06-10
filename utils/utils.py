@@ -68,9 +68,13 @@ class SmoothedValue(object):
 
 
 class MetricLogger(object):
-    def __init__(self, delimiter="\t"):
+    def __init__(self, delimiter="\t", log_file="training.log"):
         self.meters = defaultdict(SmoothedValue)
         self.delimiter = delimiter
+        self.log_file = log_file
+        if self.log_file is not None:
+            with open(self.log_file, "w") as f:
+                f.write("")
 
     def update(self, **kwargs):
         for k, v in kwargs.items():
@@ -95,6 +99,11 @@ class MetricLogger(object):
     def add_meter(self, name, meter):
         self.meters[name] = meter
 
+    def _log_to_console_and_file(self, message):
+        if self.log_file is not None:
+            with open(self.log_file, "a") as f:
+                f.write(message + "\n")
+
     def log_every(self, iterable, print_freq, header=None):
         i = 0
         if not header:
@@ -104,14 +113,7 @@ class MetricLogger(object):
         iter_time = SmoothedValue(fmt="{avg:.3f}")
         data_time = SmoothedValue(fmt="{avg:.3f}")
         space_fmt = ":" + str(len(str(len(iterable)))) + "d"
-        log_msg = self.delimiter.join(
-            [
-                header,
-                "[{0" + space_fmt + "}/{1}]",
-                "time: {time_now}",
-                "{meters}",
-            ]
-        )
+        log_msg = self.delimiter.join([header, "[{0" + space_fmt + "}/{1}]", "time: {time_now}", "{meters}"])
         for obj in iterable:
             data_time.update(time.time() - end)
             yield obj
@@ -119,23 +121,14 @@ class MetricLogger(object):
             if i % print_freq == 0 or i == len(iterable) - 1:
                 # time_now = str(datetime.datetime.now())
                 time_now = time.asctime(time.gmtime())
-                print(
-                    log_msg.format(
-                        i,
-                        len(iterable),
-                        time_now=time_now,
-                        meters=str(self),
-                    )
-                )
+                message_to_log = log_msg.format(i, len(iterable), time_now=time_now, meters=str(self))
+                self._log_to_console_and_file(message_to_log)
             i += 1
             end = time.time()
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-        print(
-            "{} Total time: {} ({:.4f} s / it)".format(
-                header, total_time_str, total_time / len(iterable)
-            )
-        )
+        final_msg = "{} Total time: {} ({:.4f} s / it)".format(header, total_time_str, total_time / len(iterable))
+        self._log_to_console_and_file(final_msg)
 
 
 # -------------------------------------------------------- #
