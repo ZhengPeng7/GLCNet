@@ -100,6 +100,7 @@ class MetricLogger(object):
         self.meters[name] = meter
 
     def _log_to_console_and_file(self, message):
+        print(message)
         if self.log_file is not None:
             with open(self.log_file, "a") as f:
                 f.write(message + "\n")

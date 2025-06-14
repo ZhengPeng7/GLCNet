@@ -62,7 +62,7 @@ def train_one_epoch(cfg, model, optimizer, data_loader, epoch, lr_scheduler, out
             warmup_scheduler.step()
 
         metric_logger.update(loss=loss_value, **loss_dict)
-        metric_logger.update(lr=lr_scheduler.get_last_lr()[-1])
+        metric_logger.update(lr=optimizer.param_groups[0]['lr'])
         if tfboard:
             iter = (epoch - 1) * len(data_loader) + i
             for k, v in loss_dict.items():
@@ -204,6 +204,7 @@ def main(args):
     elif cfg.INPUT.DATASET == "MVN":
         cfg.INPUT.DATA_ROOT = os.path.join(cfg.INPUT.DATA_ROOT_PS, 'MovieNet-PS')
     cfg.freeze()
+    epochs = cfg.SOLVER.MAX_EPOCHS
 
     device = torch.device(cfg.DEVICE)
     if cfg.SEED >= 0:
@@ -278,20 +279,20 @@ def main(args):
     print("Start training")
     start_time = time.time()
     mAP_top1_lst = []
-    for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS+1):
+    for epoch in range(start_epoch, epochs+1):
         print('Epoch {}:'.format(epoch))
         train_one_epoch(cfg, model, optimizer, train_loader, epoch, lr_scheduler, output_dir, tfboard)
         lr_scheduler.step()
 
         if(
-            epoch >= cfg.SOLVER.MAX_EPOCHS or
+            epoch >= epochs or
             (
                 epoch % cfg.EVAL_PERIOD == 0 and
-                epoch >= min(cfg.SOLVER.LR_DECAY_MILESTONES[0], cfg.SOLVER.MAX_EPOCHS-5)
+                epoch >= min(cfg.SOLVER.LR_DECAY_MILESTONES[0], epochs-5)
             ) or
             (
                 'MVN' in cfg.INPUT.DATASET and
-                (epoch % 5 == 0 or epoch >= min(cfg.SOLVER.LR_DECAY_MILESTONES[0], cfg.SOLVER.MAX_EPOCHS-10))
+                (epoch % 5 == 0 or epoch >= min(cfg.SOLVER.LR_DECAY_MILESTONES[0], epochs-10))
             )
         ):
             mAP, top1 = evaluate_performance(
