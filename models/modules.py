@@ -4,10 +4,7 @@ import torch
 import torch.nn as nn
 from torchvision.models import resnet, ResNet50_Weights
 from torchvision.ops import deform_conv2d
-from config import Config
-
-
-config = Config()
+from configs import config
 torch_version = version.parse(torch.__version__.split("+")[0])
 torch_version_legacy = version.parse('1.10.1')
 

@@ -7,15 +7,13 @@ import torch
 import torch.utils.data
 
 from datasets import build_test_loader, build_train_loader
-from defaults import get_default_cfg
 from models.glcnet import GLCNet
 from utils.utils import mkdir, load_weights, set_random_seed
-from config import Config, ConfigMVN
+from configs import config
 
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
-config = Config()
 import accelerate
 accelerator = accelerate.Accelerator(
     mixed_precision=config.mixed_precision,
@@ -31,7 +29,8 @@ from tqdm import tqdm
 from eval_func import eval_detection, eval_search_cuhk, eval_search_prw, eval_search_mvn
 from utils.utils import MetricLogger, SmoothedValue, mkdir, warmup_lr_scheduler
 
-def train_one_epoch(cfg, model, optimizer, data_loader, epoch, lr_scheduler, output_dir, tfboard=None):
+
+def train_one_epoch(model, optimizer, data_loader, epoch, lr_scheduler, output_dir, tfboard=None):
     model.train()
     metric_logger = MetricLogger(delimiter="  ", log_file=os.path.join(output_dir, 'training.log'))
     metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
@@ -39,13 +38,12 @@ def train_one_epoch(cfg, model, optimizer, data_loader, epoch, lr_scheduler, out
 
     # warmup learning rate in the first epoch
     if epoch <= 1:
-        warmup_factor = 1.0 / 1000
-        # FIXME: min(1000, len(data_loader) - 1)
+        warmup_factor = config.warmup_factor
         warmup_iters = len(data_loader) - 1
         warmup_scheduler = warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
 
     for i, (images, targets) in enumerate(
-        metric_logger.log_every(data_loader, cfg.DISP_PERIOD, header)
+        metric_logger.log_every(data_loader, config.disp_period, header)
     ):
         with accelerator.autocast():
             loss_dict = model(images, targets)
@@ -54,7 +52,8 @@ def train_one_epoch(cfg, model, optimizer, data_loader, epoch, lr_scheduler, out
         accelerator.backward(loss)
 
         with accelerator.accumulate(model):
-            accelerator.clip_grad_value_(model.parameters(), cfg.SOLVER.CLIP_GRADIENTS if cfg.SOLVER.CLIP_GRADIENTS > 0 else 1.0)
+            clip_val = config.clip_gradients if config.clip_gradients > 0 else 1.0
+            accelerator.clip_grad_value_(model.parameters(), clip_val)
             optimizer.step()
             optimizer.zero_grad()
 
@@ -180,7 +179,7 @@ def evaluate_performance(
         elif gallery_loader.dataset.name == "MVN":
             ret = eval_search_mvn(
                 gallery_loader.dataset, query_loader.dataset, gallery_dets, gallery_feats, query_box_feats, query_dets, query_feats,
-                cbgm=use_cbgm, gallery_size=ConfigMVN().gallery_size,
+                cbgm=use_cbgm, gallery_size=config.mvn_gallery_size,
             )
         mAP = ret["mAP"]
         top1 = ret["accs"][0]
@@ -192,26 +191,16 @@ def evaluate_performance(
 
 
 def main(args):
-    cfg = get_default_cfg()
-    cfg.set_new_allowed(True)
-    if args.cfg_file:
-        cfg.merge_from_file(args.cfg_file)
-    cfg.merge_from_list(args.opts)
-    if cfg.INPUT.DATASET == "CUHK-SYSU":
-        cfg.INPUT.DATA_ROOT = os.path.join(cfg.INPUT.DATA_ROOT_PS, 'cuhk_sysu')
-    elif cfg.INPUT.DATASET == "PRW":
-        cfg.INPUT.DATA_ROOT = os.path.join(cfg.INPUT.DATA_ROOT_PS, 'prw')
-    elif cfg.INPUT.DATASET == "MVN":
-        cfg.INPUT.DATA_ROOT = os.path.join(cfg.INPUT.DATA_ROOT_PS, 'MovieNet-PS')
-    cfg.freeze()
-    epochs = cfg.SOLVER.MAX_EPOCHS
+    # Override output_dir if --ckpt_dir is specified
+    output_dir = args.ckpt_dir if args.ckpt_dir else config.output_dir
+    epochs = config.max_epochs
 
-    device = torch.device(cfg.DEVICE)
-    if cfg.SEED >= 0:
-        set_random_seed(cfg.SEED)
+    device = torch.device(config.device)
+    if config.seed >= 0:
+        set_random_seed(config.seed)
 
     print("Creating model")
-    model = GLCNet(cfg)
+    model = GLCNet(config)
     model.to(device)
 
     if config.compile:
@@ -220,7 +209,10 @@ def main(args):
         torch.set_float32_matmul_precision('high')
 
     print("Loading data")
-    gallery_loader, query_loader = build_test_loader(cfg)
+    gallery_loader, query_loader = build_test_loader(config)
+
+    # Handle --cbgm flag
+    use_cbgm = args.cbgm or config.eval_use_cbgm
 
     if args.eval:
         assert args.ckpt, "--ckpt must be specified when --eval enabled"
@@ -230,27 +222,27 @@ def main(args):
             gallery_loader,
             query_loader,
             device,
-            use_gt=cfg.EVAL_USE_GT,
+            use_gt=config.eval_use_gt,
             use_cache=True,
-            use_cbgm=cfg.EVAL_USE_CBGM,
+            use_cbgm=use_cbgm,
         )
         exit(0)
 
-    train_loader = build_train_loader(cfg)
+    train_loader = build_train_loader(config)
 
     params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.SGD(
         params,
-        lr=config.lr * (cfg.INPUT.BATCH_SIZE_TRAIN / 3),    # adapt the lr linearly,
-        momentum=cfg.SOLVER.SGD_MOMENTUM,
-        weight_decay=cfg.SOLVER.WEIGHT_DECAY,
+        lr=config.lr_scaled,
+        momentum=config.sgd_momentum,
+        weight_decay=config.sgd_weight_decay,
     )
 
     # accelerate preparation
     train_loader, gallery_loader, query_loader, model, optimizer = accelerator.prepare(train_loader, gallery_loader, query_loader, model, optimizer)
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        optimizer, milestones=cfg.SOLVER.LR_DECAY_MILESTONES, gamma=0.1
+        optimizer, milestones=config.lr_decay_milestones, gamma=config.lr_decay_rate
     )
 
     start_epoch = 1
@@ -261,14 +253,10 @@ def main(args):
         _ = load_weights(args.ckpt, model) + 1
 
     print("Creating output folder")
-    output_dir = cfg.OUTPUT_DIR
     mkdir(output_dir)
-    path = os.path.join(output_dir, "config.yaml")
-    with open(path, "w") as f:
-        f.write(cfg.dump())
-    print(f"Full config is saved to {path}")
+    print(f"Output directory: {output_dir}")
     tfboard = None
-    if cfg.TF_BOARD:
+    if config.tf_board:
         from torch.utils.tensorboard import SummaryWriter
 
         tf_log_path = os.path.join(output_dir, "tf_log")
@@ -281,18 +269,18 @@ def main(args):
     mAP_top1_lst = []
     for epoch in range(start_epoch, epochs+1):
         print('Epoch {}:'.format(epoch))
-        train_one_epoch(cfg, model, optimizer, train_loader, epoch, lr_scheduler, output_dir, tfboard)
+        train_one_epoch(model, optimizer, train_loader, epoch, lr_scheduler, output_dir, tfboard)
         lr_scheduler.step()
 
         if(
             epoch >= epochs or
             (
-                epoch % cfg.EVAL_PERIOD == 0 and
-                epoch >= min(cfg.SOLVER.LR_DECAY_MILESTONES[0], epochs-5)
+                epoch % config.eval_period == 0 and
+                epoch >= min(config.lr_decay_milestones[0], epochs-3)
             ) or
             (
-                'MVN' in cfg.INPUT.DATASET and
-                (epoch % 5 == 0 or epoch >= min(cfg.SOLVER.LR_DECAY_MILESTONES[0], epochs-10))
+                'MVN' in config.task and
+                (epoch % 5 == 0 or epoch >= min(config.lr_decay_milestones[0], epochs-10))
             )
         ):
             mAP, top1 = evaluate_performance(
@@ -300,15 +288,15 @@ def main(args):
                 gallery_loader,
                 query_loader,
                 device,
-                use_gt=cfg.EVAL_USE_GT,
-                use_cache=False,    # Set to True to load cached features for a faster debugging in evaluation.
-                use_cbgm=cfg.EVAL_USE_CBGM,
+                use_gt=config.eval_use_gt,
+                use_cache=False,
+                use_cbgm=use_cbgm,
             )
         else:
             mAP, top1 = 0, 0
-        mAP_top1 = mAP + top1 * 0.5     # mAP is more important
+        mAP_top1 = round(float(mAP + top1 * 0.5), 4)
         mAP_top1_lst.append(mAP_top1)
-        print(f'mAP_top1_lst: {mAP_top1_lst}.')
+        print(f'mAP_top1_lst: {mAP_top1_lst}')
         if mAP_top1 > max(mAP_top1_lst[:-1] + [0]):
             print('Saving the best model with mAP={:.3f}, top-1={:.3f} ...'.format(round(mAP, 3), round(top1, 3)))
             torch.save(model.state_dict(), os.path.join(output_dir, "epoch_best.pth"))
@@ -323,13 +311,11 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a person search network.")
-    parser.add_argument("--cfg", dest="cfg_file", help="Path to configuration file.")
+    parser.add_argument("--ckpt_dir", default='', help="Path to save checkpoints.")
     parser.add_argument(
         "--eval", action="store_true", help="Evaluate the performance of a given checkpoint."
     )
     parser.add_argument("--ckpt", default='', help="Path to checkpoint to resume or evaluate.")
-    parser.add_argument(
-        "opts", nargs=argparse.REMAINDER, help="Modify config options using the command-line"
-    )
+    parser.add_argument("--cbgm", action="store_true", help="Use CBGM algorithm for evaluation.")
     args = parser.parse_args()
     main(args)

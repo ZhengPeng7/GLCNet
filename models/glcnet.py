@@ -14,7 +14,7 @@ from torchvision.ops import boxes as box_ops
 
 from losses.oim import OIMLoss
 from losses.det import detection_losses
-from config import Config
+from configs import config
 from models.modules import SEAttention
 
 from models.resnet import build_resnet50, build_resnet101
@@ -22,9 +22,6 @@ from models.pvt import build_pvt
 from models.modules import MultiPartSpliter
 
 from models.cxt_ext import ContextExtractor1, ContextExtractor2, ContextExtractor3_scene, ContextExtractor3_group
-
-
-config = Config()
 
 
 class GLCNet(nn.Module):
@@ -49,21 +46,21 @@ class GLCNet(nn.Module):
             num_anchors=anchor_generator.num_anchors_per_location()[0],
         )
         pre_nms_top_n = dict(
-            training=cfg.MODEL.RPN.PRE_NMS_TOPN_TRAIN, testing=cfg.MODEL.RPN.PRE_NMS_TOPN_TEST
+            training=cfg.rpn_pre_nms_topn_train, testing=cfg.rpn_pre_nms_topn_test
         )
         post_nms_top_n = dict(
-            training=cfg.MODEL.RPN.POST_NMS_TOPN_TRAIN, testing=cfg.MODEL.RPN.POST_NMS_TOPN_TEST
+            training=cfg.rpn_post_nms_topn_train, testing=cfg.rpn_post_nms_topn_test
         )
         rpn = RegionProposalNetwork(
             anchor_generator=anchor_generator,
             head=head,
-            fg_iou_thresh=cfg.MODEL.RPN.POS_THRESH_TRAIN,
-            bg_iou_thresh=cfg.MODEL.RPN.NEG_THRESH_TRAIN,
-            batch_size_per_image=cfg.MODEL.RPN.BATCH_SIZE_TRAIN,
-            positive_fraction=cfg.MODEL.RPN.POS_FRAC_TRAIN,
+            fg_iou_thresh=cfg.rpn_pos_thresh_train,
+            bg_iou_thresh=cfg.rpn_neg_thresh_train,
+            batch_size_per_image=cfg.rpn_batch_size_train,
+            positive_fraction=cfg.rpn_pos_frac_train,
             pre_nms_top_n=pre_nms_top_n,
             post_nms_top_n=post_nms_top_n,
-            nms_thresh=cfg.MODEL.RPN.NMS_THRESH,
+            nms_thresh=cfg.rpn_nms_thresh,
         )
 
         faster_rcnn_predictor = FastRCNNPredictor(box_head.out_channels[1], 2)
@@ -71,7 +68,7 @@ class GLCNet(nn.Module):
         box_roi_pool = MultiScaleRoIAlign(
             featmap_names=["feat_res3"], output_size=14, sampling_ratio=2
         )
-        box_predictor = BBoxRegressor(box_head.out_channels[1], num_classes=2, bn_neck=cfg.MODEL.ROI_HEAD.BN_NECK)
+        box_predictor = BBoxRegressor(box_head.out_channels[1], num_classes=2, bn_neck=cfg.roi_head_bn_neck)
 
         fusion_layers_att = []
         fusion_layers_mlp = []
@@ -129,10 +126,10 @@ class GLCNet(nn.Module):
         self.fuser = [self.fuser_att, self.fuser_mlp, self.fuser_conv]
         roi_heads = SeqRoIHeads(
             # OIM
-            num_pids=cfg.MODEL.LOSS.LUT_SIZE,
-            num_cq_size=cfg.MODEL.LOSS.CQ_SIZE,
-            oim_momentum=cfg.MODEL.LOSS.OIM_MOMENTUM,
-            oim_scalar=cfg.MODEL.LOSS.OIM_SCALAR,
+            num_pids=cfg.lut_size,
+            num_cq_size=cfg.cq_size,
+            oim_momentum=cfg.oim_momentum,
+            oim_scalar=cfg.oim_scalar,
             # GLCNet
             faster_rcnn_predictor=faster_rcnn_predictor,
             reid_head=reid_head,
@@ -140,14 +137,14 @@ class GLCNet(nn.Module):
             box_roi_pool=box_roi_pool,
             box_head=box_head,
             box_predictor=box_predictor,
-            fg_iou_thresh=cfg.MODEL.ROI_HEAD.POS_THRESH_TRAIN,
-            bg_iou_thresh=cfg.MODEL.ROI_HEAD.NEG_THRESH_TRAIN,
-            batch_size_per_image=cfg.MODEL.ROI_HEAD.BATCH_SIZE_TRAIN,
-            positive_fraction=cfg.MODEL.ROI_HEAD.POS_FRAC_TRAIN,
+            fg_iou_thresh=cfg.roi_head_pos_thresh_train,
+            bg_iou_thresh=cfg.roi_head_neg_thresh_train,
+            batch_size_per_image=cfg.roi_head_batch_size_train,
+            positive_fraction=cfg.roi_head_pos_frac_train,
             bbox_reg_weights=None,
-            score_thresh=cfg.MODEL.ROI_HEAD.SCORE_THRESH_TEST,
-            nms_thresh=cfg.MODEL.ROI_HEAD.NMS_THRESH_TEST,
-            detections_per_img=cfg.MODEL.ROI_HEAD.DETECTIONS_PER_IMAGE_TEST,
+            score_thresh=cfg.roi_head_score_thresh_test,
+            nms_thresh=cfg.roi_head_nms_thresh_test,
+            detections_per_img=cfg.roi_head_detections_per_image_test,
             cxt_scene_extractor=self.cxt_scene_extractor if config.cxt_scene_enabled else None,
             cxt_group_extractor=self.cxt_group_extractor if config.cxt_group_enabled else None,
             fuser=self.fuser if config.use_fusion else [[], [], []],
@@ -155,8 +152,8 @@ class GLCNet(nn.Module):
         )
 
         transform = GeneralizedRCNNTransform(
-            min_size=cfg.INPUT.MIN_SIZE,
-            max_size=cfg.INPUT.MAX_SIZE,
+            min_size=cfg.input_min_size,
+            max_size=cfg.input_max_size,
             image_mean=[0.485, 0.456, 0.406],
             image_std=[0.229, 0.224, 0.225],
         )
@@ -167,13 +164,13 @@ class GLCNet(nn.Module):
         self.transform = transform
 
         # loss weights
-        self.lw_rpn_reg = cfg.SOLVER.LW_RPN_REG
-        self.lw_rpn_cls = cfg.SOLVER.LW_RPN_CLS
-        self.lw_proposal_reg = cfg.SOLVER.LW_PROPOSAL_REG
-        self.lw_proposal_cls = cfg.SOLVER.LW_PROPOSAL_CLS
-        self.lw_box_reg = cfg.SOLVER.LW_BOX_REG
-        self.lw_box_cls = cfg.SOLVER.LW_BOX_CLS
-        self.lw_box_reid = cfg.SOLVER.LW_BOX_REID
+        self.lw_rpn_reg = cfg.lw_rpn_reg
+        self.lw_rpn_cls = cfg.lw_rpn_cls
+        self.lw_proposal_reg = cfg.lw_proposal_reg
+        self.lw_proposal_cls = cfg.lw_proposal_cls
+        self.lw_box_reg = cfg.lw_box_reg
+        self.lw_box_cls = cfg.lw_box_cls
+        self.lw_box_reid = cfg.lw_box_reid
 
     def inference(self, images, targets=None, query_img_as_gallery=False):
         """

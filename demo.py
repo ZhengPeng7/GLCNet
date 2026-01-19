@@ -7,7 +7,7 @@ import torch.utils.data
 from PIL import Image
 from torchvision.transforms import functional as F
 
-from defaults import get_default_cfg
+from configs import config
 from models.glcnet import GLCNet
 from utils.utils import load_weights
 
@@ -41,16 +41,10 @@ def visualize_result(img_path, detections, similarities):
 
 
 def main(args):
-    cfg = get_default_cfg()
-    if args.cfg_file:
-        cfg.merge_from_file(args.cfg_file)
-    cfg.merge_from_list(args.opts)
-    cfg.freeze()
-
-    device = torch.device(cfg.DEVICE)
+    device = torch.device(config.device)
 
     print("Creating model")
-    model = GLCNet(cfg)
+    model = GLCNet(config)
     model.to(device)
     model.eval()
 
@@ -77,10 +71,6 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a person search network.")
-    parser.add_argument("--cfg", dest="cfg_file", help="Path to configuration file.")
     parser.add_argument("--ckpt", required=True, help="Path to checkpoint to resume or evaluate.")
-    parser.add_argument(
-        "opts", nargs=argparse.REMAINDER, help="Modify config options using the command-line"
-    )
     args = parser.parse_args()
     main(args)

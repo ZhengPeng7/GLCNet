@@ -1,4 +1,5 @@
 # Customed
+ckpts/
 tmp*
 data/
 exp_*

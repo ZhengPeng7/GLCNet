@@ -6,10 +6,7 @@ import torch
 import torch.nn.functional as F
 from torchvision.models import resnet, ResNet50_Weights, ResNet101_Weights
 from torch import nn
-from config import Config
-
-
-config = Config()
+from configs import config
 torch_version = version.parse(torch.__version__.split("+")[0])
 torch_version_legacy = version.parse('1.10.2')
 

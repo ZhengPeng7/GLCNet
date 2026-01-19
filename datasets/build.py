@@ -7,10 +7,7 @@ from .cuhk_sysu import CUHKSYSU
 from .prw import PRW
 from .mvn import MVN
 
-from config import Config
-
-
-config = Config()
+from configs import config
 
 
 def print_statistics(dataset):
@@ -76,12 +73,12 @@ def collate_fn(batch):
 
 def build_train_loader(cfg):
     transforms = build_transforms(is_train=True)
-    dataset = build_dataset(cfg.INPUT.DATASET, cfg.INPUT.DATA_ROOT, transforms, "train")
+    dataset = build_dataset(cfg.task, cfg.data_root, transforms, "train")
     return torch.utils.data.DataLoader(
         dataset,
-        batch_size=cfg.INPUT.BATCH_SIZE_TRAIN,
+        batch_size=cfg.batch_size_train,
         shuffle=True,
-        num_workers=cfg.INPUT.NUM_WORKERS_TRAIN,
+        num_workers=cfg.num_workers_train,
         pin_memory=True,
         drop_last=True,
         collate_fn=collate_fn,
@@ -90,21 +87,21 @@ def build_train_loader(cfg):
 
 def build_test_loader(cfg):
     transforms = build_transforms(is_train=False)
-    gallery_set = build_dataset(cfg.INPUT.DATASET, cfg.INPUT.DATA_ROOT, transforms, "gallery")
-    query_set = build_dataset(cfg.INPUT.DATASET, cfg.INPUT.DATA_ROOT, transforms, "query")
+    gallery_set = build_dataset(cfg.task, cfg.data_root, transforms, "gallery")
+    query_set = build_dataset(cfg.task, cfg.data_root, transforms, "query")
     gallery_loader = torch.utils.data.DataLoader(
         gallery_set,
-        batch_size=cfg.INPUT.BATCH_SIZE_TEST,
+        batch_size=cfg.batch_size_test,
         shuffle=False,
-        num_workers=cfg.INPUT.NUM_WORKERS_TEST,
+        num_workers=cfg.num_workers_test,
         pin_memory=True,
         collate_fn=collate_fn,
     )
     query_loader = torch.utils.data.DataLoader(
         query_set,
-        batch_size=cfg.INPUT.BATCH_SIZE_TEST,
+        batch_size=cfg.batch_size_test,
         shuffle=False,
-        num_workers=cfg.INPUT.NUM_WORKERS_TEST,
+        num_workers=cfg.num_workers_test,
         pin_memory=True,
         collate_fn=collate_fn,
     )

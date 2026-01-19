@@ -6,7 +6,7 @@ from sklearn.metrics import average_precision_score
 
 from utils.km import run_kuhn_munkres
 from utils.utils import write_json
-from config import ConfigMVN
+from configs import config
 
 
 def _compute_iou(a, b):
@@ -510,7 +510,7 @@ def eval_search_mvn(
     for i, k in enumerate(topk):
         print("  top-{:2d} = {:.2%}".format(k, accs[i]))
 
-    write_json(ret, "vis/results-mvn-appN_{}-GS_{}.json".format(ConfigMVN().train_appN, ConfigMVN().gallery_size))
+    write_json(ret, "vis/results-mvn-appN_{}-GS_{}.json".format(config.mvn_train_appN, config.mvn_gallery_size))
 
     ret["mAP"] = np.mean(aps)
     ret["accs"] = accs

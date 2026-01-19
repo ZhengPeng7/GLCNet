@@ -4,10 +4,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from models.bb_pvtv2 import pvt_v2_b2, pvt_v2_b1, pvt_v2_b0
-from config import Config
-
-
-config = Config()
+from configs import config
 
 
 class Backbone(nn.Sequential):

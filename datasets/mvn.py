@@ -5,18 +5,18 @@ from scipy.io import loadmat
 
 from .base import BaseDataset
 
-from config import ConfigMVN
+from configs import config
 
 
 class MVN(BaseDataset):
     def __init__(self, root, transforms, split):
         self.name = "MVN"
         self.img_prefix = osp.join(root, "Image")
-        self.gallery_size = ConfigMVN().gallery_size
+        self.gallery_size = config.mvn_gallery_size
         self.test_mat = 'TestG{}'.format(self.gallery_size)
         self.test_mat_path = osp.join(root, "annotation/test/train_test/{}.mat".format(self.test_mat))
         self.protoc = loadmat(self.test_mat_path)["{}".format(self.test_mat)].squeeze()
-        self.train_mat = 'Train_app{}'.format(ConfigMVN().train_appN)
+        self.train_mat = 'Train_app{}'.format(config.mvn_train_appN)
         super(MVN, self).__init__(root, transforms, split)
 
     def _load_queries(self):

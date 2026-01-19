@@ -1,10 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch import autograd, nn
-from config import Config
-
-
-config = Config()
+from configs import config
 
 class OIM(autograd.Function):
     @staticmethod

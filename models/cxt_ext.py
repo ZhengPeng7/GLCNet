@@ -1,10 +1,7 @@
 import torch
 import torch.nn as nn
 from models.modules import CoAttLayer, ChannelAttention, SpatialAttention
-from config import Config
-
-
-config = Config()
+from configs import config
 
 
 class ContextExtractor1(nn.Module):
