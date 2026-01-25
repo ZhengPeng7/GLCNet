@@ -19,8 +19,8 @@ class ConfigTask:
                 'data_dir': 'prw',
                 'lut_size': 482,
                 'cq_size': 500,
-                'max_epochs': 8,
-                'multistep_milestones': [5],
+                'max_epochs': 12,
+                'multistep_milestones': [6],
             },
             'MVN': {
                 'data_dir': 'MovieNet-PS',

@@ -11,7 +11,7 @@ ckpt="ckpts/${method}_${task}/epoch_best.pth"
 echo "Testing: Task=${task}, GPU=${devices}, Checkpoint=${ckpt}"
 
 CUDA_VISIBLE_DEVICES=${devices} \
-    python train.py --eval --ckpt ${ckpt} --cbgm
+    python eval.py --ckpt ${ckpt} --cbgm
 
 end_time=$(date +%s)
 elapsed=$((end_time - start_time))
