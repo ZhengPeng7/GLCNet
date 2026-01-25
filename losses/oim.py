@@ -7,8 +7,11 @@ class OIM(autograd.Function):
     @staticmethod
     def forward(ctx, inputs, targets, lut, cq, header, momentum):
         ctx.save_for_backward(inputs, targets, lut, cq, header, momentum)
-        outputs_labeled = inputs.mm(lut.t())
-        outputs_unlabeled = inputs.mm(cq.t())
+        # Keep outputs in float32 for numerical stability - DO NOT convert back to bf16
+        # This is critical because cross_entropy needs high precision logits
+        inputs_f = inputs.float()
+        outputs_labeled = inputs_f.mm(lut.float().t())
+        outputs_unlabeled = inputs_f.mm(cq.float().t())
         return torch.cat([outputs_labeled, outputs_unlabeled], dim=1)
 
     @staticmethod
@@ -17,12 +20,19 @@ class OIM(autograd.Function):
 
         grad_inputs = None
         if ctx.needs_input_grad[0]:
-            grad_inputs = grad_outputs.mm(torch.cat([lut, cq], dim=0))
+            # Keep gradients in float32 for numerical stability - DO NOT convert back to bf16
+            lut_cq = torch.cat([lut, cq], dim=0).float()
+            grad_inputs = grad_outputs.float().mm(lut_cq)
 
         for x, y in zip(inputs, targets):
             if y < len(lut):
-                lut[y] = momentum * lut[y] + (1.0 - momentum) * x
-                lut[y] /= lut[y].norm()
+                # Compute in float32 for numerical stability with bf16/fp16
+                lut_y = lut[y].float()
+                x_float = x.float()
+                momentum_val = momentum.float()
+                lut_y = momentum_val * lut_y + (1.0 - momentum_val) * x_float
+                # Use larger clamp value (1e-4) for bf16 stability
+                lut[y] = (lut_y / lut_y.norm().clamp(min=1e-4)).to(lut.dtype)
             else:
                 cq[header] = x
                 header = (header + 1) % cq.size(0)
@@ -30,7 +40,7 @@ class OIM(autograd.Function):
 
 
 def oim(inputs, targets, lut, cq, header, momentum=0.5):
-    return OIM.apply(inputs, targets, lut, cq, torch.tensor(header), torch.tensor(momentum))
+    return OIM.apply(inputs, targets, lut, cq, torch.tensor(header, dtype=torch.long), torch.tensor(momentum, dtype=torch.float32))
 
 
 class OIMLoss(nn.Module):
@@ -74,5 +84,6 @@ class OIMLoss(nn.Module):
         if label.min() == label.max() and label.max() == self.ignore_index:
             loss_oim = projected.sum() * 0.0
         else:
-            loss_oim = F.cross_entropy(projected, label, ignore_index=self.ignore_index)
+            # Cast to float32 for numerical stability with bf16/fp16
+            loss_oim = F.cross_entropy(projected.float(), label, ignore_index=self.ignore_index)
         return loss_oim

@@ -62,9 +62,9 @@ def main(args):
         detections = gallery_output["boxes"]
         gallery_feats = gallery_output["embeddings"]
 
-        # Compute pairwise cosine similarities,
+        # Compute pairwise cosine similarities in float32 for numerical stability
         # which equals to inner-products, as features are already L2-normed
-        similarities = gallery_feats.mm(query_feat.view(-1, 1)).squeeze()
+        similarities = gallery_feats.float().mm(query_feat.float().view(-1, 1)).squeeze()
 
         visualize_result(gallery_img_path, detections, similarities)
 

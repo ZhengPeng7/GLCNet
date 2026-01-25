@@ -4,7 +4,8 @@ import random
 
 import numpy as np
 
-zero_threshold = 0.00000001
+# Use 1e-4 for bf16 compatibility (bf16 min positive ~6e-8, 1e-8 would underflow)
+zero_threshold = 0.0001
 
 
 class KMNode(object):

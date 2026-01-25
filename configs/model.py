@@ -12,10 +12,11 @@ class ConfigModel:
         self.bb_out_channels = self._get_bb_out_channels()
 
         # Backbone weights for PVT
+        model_name_dir = 'pvt'
         self.weights_pvt = [
-            os.path.join(base.sys_home_dir, 'weights/cv/pvt_v2_b2.pth'),
-            os.path.join(base.sys_home_dir, 'weights/cv/pvt_v2_b1.pth'),
-            os.path.join(base.sys_home_dir, 'weights/cv/pvt_v2_b0.pth'),
+            os.path.join(base.sys_home_dir, 'weights/cv', model_name_dir, 'pvt_v2_b2.pth'),
+            os.path.join(base.sys_home_dir, 'weights/cv', model_name_dir, 'pvt_v2_b1.pth'),
+            os.path.join(base.sys_home_dir, 'weights/cv', model_name_dir, 'pvt_v2_b0.pth'),
             '',
         ][0]
 
@@ -32,6 +33,9 @@ class ConfigModel:
         # Context feature dimensions
         self.cxt_scene_len = self.bb_out_channels[0] * int(self.cxt_scene_enabled)
         self.cxt_group_len = self.bb_out_channels[1] * int(self.cxt_group_enabled)
+
+        # Memory optimization settings
+        self.gradient_checkpointing = False  # Save ~30-40% memory, slightly slower
 
         # Multi-part matching settings
         self.multi_part_matching = True
@@ -57,8 +61,8 @@ class ConfigModel:
         self.use_fusion = sum(self.fusion_style.values()) and not self.nae_multi
 
         # Derived feature dimensions
-        self.feat_cxt_reid_len = 2048 + self.cxt_scene_len + self.cxt_group_len
-        self.nae_norm2_len = 2048 + (self.cxt_scene_len + self.cxt_group_len) * (not bool(self.use_fusion)) * (not self.nae_multi)
+        self.feat_cxt_reid_len = self.bb_out_channels[1] + self.cxt_scene_len + self.cxt_group_len
+        self.nae_norm2_len = self.bb_out_channels[1] + (self.cxt_scene_len + self.cxt_group_len) * (not bool(self.use_fusion)) * (not self.nae_multi)
 
         # RPN settings
         self.rpn_nms_thresh = 0.7

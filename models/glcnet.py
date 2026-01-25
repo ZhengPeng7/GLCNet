@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import init
+from torch.utils.checkpoint import checkpoint
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.roi_heads import RoIHeads
 from torchvision.models.detection.rpn import AnchorGenerator, RegionProposalNetwork, RPNHead
@@ -102,7 +103,7 @@ class GLCNet(nn.Module):
                     fusion_layers_att.append(
                         SEAttention(config.feat_cxt_reid_len)
                     )
-                channel_opt = 2048
+                channel_opt = config.bb_out_channels[1]
                 for k, v in config.fusion_style.items():
                     for idx_layer in range(v):
                         if not idx_layer:
@@ -112,12 +113,13 @@ class GLCNet(nn.Module):
                         if k == 'mlp':
                             fusion_layers_mlp.append(nn.Linear(channel_ipt, channel_opt))
                             if config.relu_after_mlp:
-                                fusion_layers_mlp.append(nn.ReLU(inplace=True))
+                                fusion_layers_mlp.append(nn.ReLU())
                         elif k == 'conv':
                             fusion_layers_conv.append(nn.Conv1d(channel_ipt, channel_opt, 1, 1))
                             if config.bnRelu_after_conv:
-                                fusion_layers_conv.append(nn.BatchNorm1d(channel_opt))
-                                fusion_layers_conv.append(nn.ReLU(inplace=True))
+                                # Use eps=1e-3 for bf16 compatibility
+                                fusion_layers_conv.append(nn.BatchNorm1d(channel_opt, eps=1e-3))
+                                fusion_layers_conv.append(nn.ReLU())
         if config.multi_part_matching:
             self.mps = MultiPartSpliter(out_channels=config.mps_channels)
         self.fuser_att = nn.Sequential(*fusion_layers_att)
@@ -186,7 +188,7 @@ class GLCNet(nn.Module):
 
         if query_img_as_gallery:
             assert targets is not None
-        
+
         proposals, _ = self.rpn(images, features, targets)
         detections, _ = self.roi_heads(
             features, proposals, images.image_sizes, targets, query_img_as_gallery
@@ -204,17 +206,29 @@ class GLCNet(nn.Module):
                 box_features.update(mps_feat_dict)
             if config.cxt:
                 if config.cxt_scene_enabled:
-                    cxt_scene_proposalNum = torch.mean(self.roi_heads.x_embedding_head['cxt_scene'], dim=0).unsqueeze(0)
+                    # Compute mean in float32 for numerical stability with bf16/fp16
+                    # During eval, keep float32 for precision
+                    cxt_scene_feat = self.roi_heads.x_embedding_head['cxt_scene']
+                    cxt_scene_proposalNum = torch.mean(cxt_scene_feat.float(), dim=0)
+                    if self.training:
+                        cxt_scene_proposalNum = cxt_scene_proposalNum.to(cxt_scene_feat.dtype)
+                    cxt_scene_proposalNum = cxt_scene_proposalNum.unsqueeze(0)
                     if config.nae_multi:
                         box_features['cxt_scene'] = cxt_scene_proposalNum
                     else:
-                        box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_scene_proposalNum], 1)
+                        box_features["feat_res4"] = torch.cat([box_features["feat_res4"].float() if not self.training else box_features["feat_res4"], cxt_scene_proposalNum], 1)
                 if config.cxt_group_enabled:
-                    cxt_group_proposalNum = torch.mean(self.roi_heads.x_embedding_head['cxt_group'], dim=0).unsqueeze(0)
+                    # Compute mean in float32 for numerical stability with bf16/fp16
+                    # During eval, keep float32 for precision
+                    cxt_group_feat = self.roi_heads.x_embedding_head['cxt_group']
+                    cxt_group_proposalNum = torch.mean(cxt_group_feat.float(), dim=0)
+                    if self.training:
+                        cxt_group_proposalNum = cxt_group_proposalNum.to(cxt_group_feat.dtype)
+                    cxt_group_proposalNum = cxt_group_proposalNum.unsqueeze(0)
                     if config.nae_multi:
                         box_features['cxt_group'] = cxt_group_proposalNum
                     else:
-                        box_features["feat_res4"] = torch.cat([box_features["feat_res4"], cxt_group_proposalNum], 1)
+                        box_features["feat_res4"] = torch.cat([box_features["feat_res4"].float() if not self.training else box_features["feat_res4"], cxt_group_proposalNum], 1)
                 if not config.nae_multi:
                     if self.fuser_att:
                         box_features["feat_res4"] = self.fuser_att(box_features["feat_res4"])
@@ -250,14 +264,15 @@ class GLCNet(nn.Module):
         losses.update(detector_losses)
         losses.update(proposal_losses)
 
-        # apply loss weights
-        losses["loss_rpn_reg"] *= self.lw_rpn_reg
-        losses["loss_rpn_cls"] *= self.lw_rpn_cls
-        losses["loss_proposal_reg"] *= self.lw_proposal_reg
-        losses["loss_proposal_cls"] *= self.lw_proposal_cls
-        losses["loss_box_reg"] *= self.lw_box_reg
-        losses["loss_box_cls"] *= self.lw_box_cls
-        losses["loss_box_reid"] *= self.lw_box_reid
+        # apply loss weights - keep ALL losses in float32 for numerical stability
+        # DO NOT convert back to bf16, as this causes gradient quantization
+        losses["loss_rpn_reg"] = losses["loss_rpn_reg"].float() * self.lw_rpn_reg
+        losses["loss_rpn_cls"] = losses["loss_rpn_cls"].float() * self.lw_rpn_cls
+        losses["loss_proposal_reg"] = losses["loss_proposal_reg"].float() * self.lw_proposal_reg
+        losses["loss_proposal_cls"] = losses["loss_proposal_cls"].float() * self.lw_proposal_cls
+        losses["loss_box_reg"] = losses["loss_box_reg"].float() * self.lw_box_reg
+        losses["loss_box_cls"] = losses["loss_box_cls"].float() * self.lw_box_cls
+        losses["loss_box_reid"] = losses["loss_box_reid"].float() * self.lw_box_reid
         return losses
 
 
@@ -281,7 +296,7 @@ class SeqRoIHeads(RoIHeads):
         if not config.nae_multi:
             if config.nae_mix_res3:
                 featmap_names = ['feat_res3', 'feat_res4']
-                in_channels=[1024, config.nae_norm2_len]
+                in_channels=[config.bb_out_channels[0], config.nae_norm2_len]
             else:
                 featmap_names = ['feat_res4']
                 in_channels=[config.nae_norm2_len]
@@ -296,7 +311,11 @@ class SeqRoIHeads(RoIHeads):
                 in_channels.append(config.cxt_group_len)
         if config.multi_part_matching:
             self.mps = mps
-            mps_channels = config.mps_channels if config.mps_channels else 2048
+            # When using resnet50_layer4 as MPS block, output is always 2048 regardless of backbone
+            if config.mps_blk == 'resnet50_layer4':
+                mps_channels = config.mps_channels if config.mps_channels else 2048
+            else:
+                mps_channels = config.mps_channels if config.mps_channels else config.bb_out_channels[1]
             feat_names_channels = {
                 'feat_granularity_1': mps_channels,
                 'feat_granularity_2_horizon_1': mps_channels, 'feat_granularity_2_horizon_2': mps_channels,
@@ -365,18 +384,31 @@ class SeqRoIHeads(RoIHeads):
             box_features = self.box_roi_pool(features, boxes, image_shapes)
             if config.multi_part_matching:
                 # features.shape == batch_size, 1024, 58, 94
-                mps_feat_dict = self.mps(box_features)
-            box_features = self.reid_head(box_features)
+                if self.training and config.gradient_checkpointing:
+                    mps_feat_dict = checkpoint(self.mps, box_features, use_reentrant=False)
+                else:
+                    mps_feat_dict = self.mps(box_features)
+            if self.training and config.gradient_checkpointing:
+                box_features = checkpoint(self.reid_head, box_features, use_reentrant=False)
+            else:
+                box_features = self.reid_head(box_features)
             if config.multi_part_matching:
                 box_features.update(mps_feat_dict)
             box_regs = self.box_predictor(box_features["feat_res4"])
             if config.cxt:
                 feat_res4_ori = box_features['feat_res4']
                 if config.cxt_scene_enabled:
-                    cxt_scene = self.cxt_scene_extractor(features['feat_res3']).squeeze(-1)
-                    cxt_scene_proposalNum = torch.cat([
-                        cxt_scene[idx_bs].unsqueeze(0).repeat(box.shape[0], 1, 1) for idx_bs, box in enumerate(boxes)
-                    ], dim=0)   # I repeat the scene feature for box times to add the scene context to each box -- Equip all objects in this image with the scene context here.
+                    if self.training and config.gradient_checkpointing:
+                        cxt_scene = checkpoint(self.cxt_scene_extractor, features['feat_res3'], use_reentrant=False).squeeze(-1)
+                    else:
+                        cxt_scene = self.cxt_scene_extractor(features['feat_res3']).squeeze(-1)
+
+                    cxt_scene_lst = []
+                    for idx_bs, box in enumerate(boxes):
+                        # I repeat the scene feature for box times to add the scene context to each box -- Equip all objects in this image with the scene context here.
+                        cxt_scene_lst.append(cxt_scene[idx_bs:idx_bs+1].expand(box.shape[0], -1, -1))
+                    cxt_scene_proposalNum = torch.cat(cxt_scene_lst, dim=0)
+
                     if config.nae_multi:
                         box_features['cxt_scene'] = cxt_scene_proposalNum.unsqueeze(-1)
                     else:
@@ -392,16 +424,23 @@ class SeqRoIHeads(RoIHeads):
                     cxt_group_per_image = []
                     for feat_res4, whether_box_has_person_lst in zip(feat_res4_per_image, whether_box_has_person_lst_per_image):
                         # Select the features of boxes which have persons. Each image has 128 boxes.
-                        # cxt_group_per_image.append(torch.sum(feat_res4 * whether_box_has_person_lst, dim=0).unsqueeze(0) / (torch.sum(whether_box_has_person_lst) + 1e-5))
                         feat_persons = feat_res4[whether_box_has_person_lst]
-                        feat_persons_squeezed = torch.mean(feat_persons, dim=0)
+                        # Compute mean in float32 for numerical stability - keep float32 during training
+                        # to preserve context feature precision
+                        feat_persons_squeezed = feat_persons.float().mean(dim=0)
                         feat_persons_squeezed = feat_persons_squeezed.unsqueeze(0)
                         cxt_group_per_image.append(feat_persons_squeezed)
                     cxt_group_per_image = torch.cat(cxt_group_per_image, dim=0)
-                    cxt_group_per_image = self.cxt_group_extractor(cxt_group_per_image)
-                    cxt_group_proposalNum = torch.cat([
-                        cxt_group_per_image[idx_bs].repeat(box.shape[0], 1, 1, 1) for idx_bs, box in enumerate(boxes)
-                    ], dim=0)
+                    if self.training and config.gradient_checkpointing:
+                        cxt_group_per_image = checkpoint(self.cxt_group_extractor, cxt_group_per_image, use_reentrant=False)
+                    else:
+                        cxt_group_per_image = self.cxt_group_extractor(cxt_group_per_image)
+
+                    cxt_group_lst = []
+                    for idx_bs, box in enumerate(boxes):
+                        cxt_group_lst.append(cxt_group_per_image[idx_bs:idx_bs+1].expand(box.shape[0], -1, -1, -1))
+                    cxt_group_proposalNum = torch.cat(cxt_group_lst, dim=0)
+
                     if config.nae_multi:
                         box_features['cxt_group'] = cxt_group_proposalNum
                     else:
@@ -432,18 +471,23 @@ class SeqRoIHeads(RoIHeads):
                     gt_box_features.update(mps_feat_dict)
                 if config.cxt:
                     # Use the contexts to enhance the features of surrounding persons.
+                    # During eval (this branch), keep float32 for precision
                     if config.cxt_scene_enabled:
-                        cxt_scene_proposalNum = torch.mean(self.x_embedding_head['cxt_scene'], dim=0).unsqueeze(0)
+                        # Compute mean in float32 for numerical stability with bf16/fp16
+                        cxt_scene_feat = self.x_embedding_head['cxt_scene']
+                        cxt_scene_proposalNum = torch.mean(cxt_scene_feat.float(), dim=0).unsqueeze(0)
                         if config.nae_multi:
                             gt_box_features['cxt_scene'] = cxt_scene_proposalNum
                         else:
-                            gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], cxt_scene_proposalNum], 1)
+                            gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"].float(), cxt_scene_proposalNum], 1)
                     if config.cxt_group_enabled:
-                        cxt_group_proposalNum = torch.mean(self.x_embedding_head['cxt_group'], dim=0).unsqueeze(0)
+                        # Compute mean in float32 for numerical stability with bf16/fp16
+                        cxt_group_feat = self.x_embedding_head['cxt_group']
+                        cxt_group_proposalNum = torch.mean(cxt_group_feat.float(), dim=0).unsqueeze(0)
                         if config.nae_multi:
                             gt_box_features['cxt_group'] = cxt_group_proposalNum
                         else:
-                            gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"], cxt_group_proposalNum], 1)
+                            gt_box_features["feat_res4"] = torch.cat([gt_box_features["feat_res4"].float(), cxt_group_proposalNum], 1)
                 if not config.nae_multi:
                     if self.fuser_att:
                         gt_box_features["feat_res4"] = self.fuser_att(gt_box_features["feat_res4"])
@@ -569,10 +613,17 @@ class SeqRoIHeads(RoIHeads):
             # Fist Classification Score (FCS)
             pred_scores = fcs[0]
         else:
-            pred_scores = torch.sigmoid(class_logits)
+            # Compute sigmoid in float32 for numerical stability with bf16/fp16
+            # During eval, keep float32 for precision; during training, convert back to save memory
+            pred_scores = torch.sigmoid(class_logits.float())
+            if self.training:
+                pred_scores = pred_scores.to(class_logits.dtype)
         if cws:
-            # Confidence Weighted Similarity (CWS)
-            embeddings = embeddings * pred_scores.view(-1, 1)
+            # Confidence Weighted Similarity (CWS) - compute in float32 for numerical stability
+            # During eval, embeddings are already float32 from NormAwareEmbedding
+            embeddings = embeddings.float() * pred_scores.view(-1, 1).float()
+            if self.training:
+                embeddings = embeddings.to(class_logits.dtype)
 
         # split boxes and scores per image
         pred_boxes = pred_boxes.split(boxes_per_image, 0)
@@ -602,8 +653,8 @@ class SeqRoIHeads(RoIHeads):
             labels = labels.flatten()
             embeddings = embeddings.reshape(-1, self.embedding_head.dim if isinstance(self.embedding_head.dim, int) else sum(self.embedding_head.dim))
 
-            # remove low scoring boxes
-            inds = torch.nonzero(scores > self.score_thresh).squeeze(1)
+            # remove low scoring boxes (compare in float32 for bf16/fp16 precision)
+            inds = torch.nonzero(scores.float() > float(self.score_thresh)).squeeze(1)
             boxes, scores, labels, embeddings = (
                 boxes[inds],
                 scores[inds],
@@ -611,8 +662,8 @@ class SeqRoIHeads(RoIHeads):
                 embeddings[inds],
             )
 
-            # remove empty boxes
-            keep = box_ops.remove_small_boxes(boxes, min_size=1e-2)
+            # remove empty boxes (use larger min_size for bf16 numerical stability)
+            keep = box_ops.remove_small_boxes(boxes.float(), min_size=0.1)
             boxes, scores, labels, embeddings = (
                 boxes[keep],
                 scores[keep],
@@ -623,12 +674,12 @@ class SeqRoIHeads(RoIHeads):
             if gt_det is not None:
                 # include GT into the detection results
                 boxes = torch.cat((boxes, gt_det["boxes"]), dim=0)
-                labels = torch.cat((labels, torch.tensor([1.0]).to(device)), dim=0)
-                scores = torch.cat((scores, torch.tensor([1.0]).to(device)), dim=0)
+                labels = torch.cat((labels, torch.tensor([1.0], dtype=torch.float32, device=device)), dim=0)
+                scores = torch.cat((scores, torch.tensor([1.0], dtype=torch.float32, device=device)), dim=0)
                 embeddings = torch.cat((embeddings, gt_det["embeddings"]), dim=0)
 
-            # non-maximum suppression, independently done per class
-            keep = box_ops.batched_nms(boxes, scores, labels, self.nms_thresh)
+            # non-maximum suppression in float32 for precise IoU calculation
+            keep = box_ops.batched_nms(boxes.float(), scores.float(), labels, self.nms_thresh)
             # keep only topk scoring predictions
             keep = keep[: self.detections_per_img]
             boxes, scores, labels, embeddings = (
@@ -652,7 +703,7 @@ class NormAwareEmbedding(nn.Module):
     Chen, Di, et al. "Norm-aware embedding for efficient person search." CVPR 2020.
     """
 
-    def __init__(self, featmap_names=["feat_res3", "feat_res4"], in_channels=[1024, 2048], dim=config.nae_dims):
+    def __init__(self, featmap_names=["feat_res3", "feat_res4"], in_channels=[config.bb_out_channels[0], config.bb_out_channels[1]], dim=config.nae_dims):
         super(NormAwareEmbedding, self).__init__()
         self.featmap_names = featmap_names
         self.in_channels = in_channels
@@ -668,8 +719,10 @@ class NormAwareEmbedding(nn.Module):
                 for _ in range(num_parts):
                     indv_dims.append(config.mps_norm_len)
 
+        # Use eps=1e-3 for bf16 compatibility (default 1e-5 is borderline)
+        bn_eps = 1e-3
         for ftname, in_channel, indv_dim in zip(self.featmap_names, self.in_channels, indv_dims):
-            proj = nn.Sequential(nn.Linear(in_channel, indv_dim), nn.BatchNorm1d(indv_dim))
+            proj = nn.Sequential(nn.Linear(in_channel, indv_dim), nn.BatchNorm1d(indv_dim, eps=bn_eps))
             init.normal_(proj[0].weight, std=0.01)
             init.normal_(proj[1].weight, std=0.01)
             init.constant_(proj[0].bias, 0)
@@ -679,9 +732,9 @@ class NormAwareEmbedding(nn.Module):
         self.rescaler = []
         if config.bn_feature_seperately:
             for _ in dim:
-                self.rescaler.append(nn.BatchNorm1d(1, affine=True))
+                self.rescaler.append(nn.BatchNorm1d(1, affine=True, eps=bn_eps))
         else:
-            self.rescaler = nn.BatchNorm1d(1, affine=True)
+            self.rescaler = nn.BatchNorm1d(1, affine=True, eps=bn_eps)
 
     def forward(self, featmaps):
         """
@@ -694,14 +747,20 @@ class NormAwareEmbedding(nn.Module):
         """
 
         assert len(featmaps) == len(self.featmap_names)
+        # During evaluation, keep embeddings in float32 for precision; during training, convert back to save memory
+        output_dtype = None if self.training else torch.float32
         if len(featmaps) == 1:
             for k, v in featmaps.items():
                 pass
             v = self._flatten_fc_input(v)
+            orig_dtype = v.dtype
             embeddings = self.projectors[k](v)
-            norms = embeddings.norm(2, 1, keepdim=True)
-            embeddings = embeddings / norms.expand_as(embeddings).clamp(min=1e-12)
-            norms = self.rescaler(norms).squeeze()
+            # Compute norm and division in float32 for numerical stability with bf16/fp16
+            norms = embeddings.float().norm(2, 1, keepdim=True)
+            embeddings = embeddings.float() / norms.clamp(min=1e-4).expand_as(embeddings)
+            if output_dtype is None:
+                embeddings = embeddings.to(orig_dtype)
+            norms = self.rescaler(norms.to(orig_dtype)).squeeze()
             return embeddings, norms
         else:
             if config.bn_feature_seperately:
@@ -709,24 +768,34 @@ class NormAwareEmbedding(nn.Module):
                 norms = []
                 for idx_fm, (k, v) in enumerate(featmaps.items()):
                     v = self._flatten_fc_input(v)
+                    orig_dtype = v.dtype
                     proj_feat = self.projectors[k](v)
-                    norm = proj_feat.norm(2, 1, keepdim=True)
-                    embedding = proj_feat / norm.expand_as(proj_feat).clamp(min=1e-12)
-                    norm = self.rescaler[idx_fm](norm).squeeze()
+                    # Compute norm and division in float32 for numerical stability
+                    norm = proj_feat.float().norm(2, 1, keepdim=True)
+                    embedding = proj_feat.float() / norm.clamp(min=1e-4).expand_as(proj_feat)
+                    if output_dtype is None:
+                        embedding = embedding.to(orig_dtype)
+                    norm = self.rescaler[idx_fm](norm.to(orig_dtype)).squeeze()
                     embeddings.append(embedding)
                     norms.append(norm)
                 embeddings = torch.cat(embeddings, dim=1)
                 norms = torch.cat(norms, dim=1)
             else:
                 outputs = []
+                orig_dtype = None
                 for k, v in featmaps.items():
                     v = self._flatten_fc_input(v)
+                    if orig_dtype is None:
+                        orig_dtype = v.dtype
                     proj_feat = self.projectors[k](v)
                     outputs.append(proj_feat)
                 embeddings = torch.cat(outputs, dim=1)
-                norms = embeddings.norm(2, 1, keepdim=True)
-                embeddings = embeddings / norms.expand_as(embeddings).clamp(min=1e-12)
-                norms = self.rescaler(norms).squeeze()
+                # Compute norm and division in float32 for numerical stability
+                norms = embeddings.float().norm(2, 1, keepdim=True)
+                embeddings = embeddings.float() / norms.clamp(min=1e-4).expand_as(embeddings)
+                if output_dtype is None:
+                    embeddings = embeddings.to(orig_dtype)
+                norms = self.rescaler(norms.to(orig_dtype)).squeeze()
             return embeddings, norms
 
     def _flatten_fc_input(self, x):
@@ -762,8 +831,9 @@ class BBoxRegressor(nn.Module):
         """
         super(BBoxRegressor, self).__init__()
         if bn_neck:
+            # Use eps=1e-3 for bf16 compatibility
             self.bbox_pred = nn.Sequential(
-                nn.Linear(in_channels, 4 * num_classes), nn.BatchNorm1d(4 * num_classes)
+                nn.Linear(in_channels, 4 * num_classes), nn.BatchNorm1d(4 * num_classes, eps=1e-3)
             )
             init.normal_(self.bbox_pred[0].weight, std=0.01)
             init.normal_(self.bbox_pred[1].weight, std=0.01)

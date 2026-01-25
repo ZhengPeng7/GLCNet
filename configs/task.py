@@ -13,21 +13,21 @@ class ConfigTask:
                 'lut_size': 5532,
                 'cq_size': 5000,
                 'max_epochs': 15,
-                'lr_decay_milestones': [8],
+                'multistep_milestones': [8],
             },
             'PRW': {
                 'data_dir': 'prw',
                 'lut_size': 482,
                 'cq_size': 500,
                 'max_epochs': 8,
-                'lr_decay_milestones': [6],
+                'multistep_milestones': [5],
             },
             'MVN': {
                 'data_dir': 'MovieNet-PS',
                 'lut_size': 3087,
                 'cq_size': 3000,
                 'max_epochs': 30,
-                'lr_decay_milestones': [20],
+                'multistep_milestones': [20],
                 'min_size': 900,
                 'max_size': 1500,
             },
@@ -42,7 +42,7 @@ class ConfigTask:
         self.lut_size = task_cfg['lut_size']
         self.cq_size = task_cfg['cq_size']
         self.max_epochs = task_cfg['max_epochs']
-        self.lr_decay_milestones = task_cfg['lr_decay_milestones']
+        self.multistep_milestones = task_cfg['multistep_milestones']
         self.input_min_size = task_cfg.get('min_size', 900)
         self.input_max_size = task_cfg.get('max_size', 1500)
         self.output_dir = 'ckpts/tmp'  # Default, overridden by --ckpt_dir

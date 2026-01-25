@@ -1,14 +1,13 @@
---extra-index-url https://download.pytorch.org/whl/cu128
 torch>=2.7.0
---extra-index-url https://download.pytorch.org/whl/cu128
 torchvision
 
-numpy<2
+numpy
 scikit-learn
 scipy
 matplotlib
 accelerate
 timm
+lion-pytorch
 
 tensorboard
 torch-tb-profiler

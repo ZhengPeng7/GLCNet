@@ -53,7 +53,8 @@ class Attention(nn.Module):
         self.dim = dim
         self.num_heads = num_heads
         head_dim = dim // num_heads
-        self.scale = qk_scale or head_dim ** -0.5
+        # Ensure scale is Python float for consistent precision with bf16/fp16
+        self.scale = float(qk_scale) if qk_scale is not None else float(head_dim ** -0.5)
 
         self.q = nn.Linear(dim, dim, bias=qkv_bias)
         self.kv = nn.Linear(dim, dim * 2, bias=qkv_bias)
@@ -64,7 +65,8 @@ class Attention(nn.Module):
         self.sr_ratio = sr_ratio
         if sr_ratio > 1:
             self.sr = nn.Conv2d(dim, dim, kernel_size=sr_ratio, stride=sr_ratio)
-            self.norm = nn.LayerNorm(dim)
+            # Use eps=1e-3 for bf16 compatibility
+            self.norm = nn.LayerNorm(dim, eps=1e-3)
 
         self.apply(self._init_weights)
 
@@ -96,11 +98,13 @@ class Attention(nn.Module):
             kv = self.kv(x).reshape(B, -1, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         k, v = kv[0], kv[1]
 
-        attn = (q @ k.transpose(-2, -1)) * self.scale
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
+        # Compute attention in float32 for numerical stability with bf16/fp16
+        attn = (q.float() @ k.float().transpose(-2, -1)) * self.scale
+        # Explicitly keep softmax in float32 to ensure numerical stability
+        attn = attn.float().softmax(dim=-1)
+        attn = self.attn_drop(attn.to(q.dtype))
 
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = (attn.float() @ v.float()).to(q.dtype).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
 
@@ -166,7 +170,8 @@ class OverlapPatchEmbed(nn.Module):
         self.num_patches = self.H * self.W
         self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=stride,
                               padding=(patch_size[0] // 2, patch_size[1] // 2))
-        self.norm = nn.LayerNorm(embed_dim)
+        # Use eps=1e-3 for bf16 compatibility
+        self.norm = nn.LayerNorm(embed_dim, eps=1e-3)
 
         self.apply(self._init_weights)
 
@@ -417,40 +422,40 @@ class pvt_v2_b0(PyramidVisionTransformerImpr):
     def __init__(self, **kwargs):
         super(pvt_v2_b0, self).__init__(
             patch_size=4, embed_dims=[32, 64, 160, 256], num_heads=[1, 2, 5, 8], mlp_ratios=[8, 8, 4, 4],
-            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
+            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-3), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1)
 
 class pvt_v2_b1(PyramidVisionTransformerImpr):
     def __init__(self, **kwargs):
         super(pvt_v2_b1, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[8, 8, 4, 4],
-            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
+            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-3), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1)
 
 class pvt_v2_b2(PyramidVisionTransformerImpr):
     def __init__(self, **kwargs):
         super(pvt_v2_b2, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[8, 8, 4, 4],
-            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 6, 3], sr_ratios=[8, 4, 2, 1],
+            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-3), depths=[3, 4, 6, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1)
 
 class pvt_v2_b3(PyramidVisionTransformerImpr):
     def __init__(self, **kwargs):
         super(pvt_v2_b3, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[8, 8, 4, 4],
-            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 18, 3], sr_ratios=[8, 4, 2, 1],
+            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-3), depths=[3, 4, 18, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1)
 
 class pvt_v2_b4(PyramidVisionTransformerImpr):
     def __init__(self, **kwargs):
         super(pvt_v2_b4, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[8, 8, 4, 4],
-            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 8, 27, 3], sr_ratios=[8, 4, 2, 1],
+            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-3), depths=[3, 8, 27, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1)
 
 class pvt_v2_b5(PyramidVisionTransformerImpr):
     def __init__(self, **kwargs):
         super(pvt_v2_b5, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
-            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 6, 40, 3], sr_ratios=[8, 4, 2, 1],
+            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-3), depths=[3, 6, 40, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1)

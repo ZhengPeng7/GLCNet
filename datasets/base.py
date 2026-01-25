@@ -13,6 +13,7 @@ class BaseDataset:
         self.split = split
         assert self.split in ("train", "gallery", "query")
         self.annotations = self._load_annotations()
+        self.imgs = [anno["img_name"] for anno in self.annotations]
 
     def _load_annotations(self):
         """

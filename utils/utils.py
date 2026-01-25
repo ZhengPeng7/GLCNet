@@ -37,7 +37,7 @@ class SmoothedValue(object):
 
     @property
     def median(self):
-        d = torch.tensor(list(self.deque))
+        d = torch.tensor(list(self.deque), dtype=torch.float32)
         return d.median().item()
 
     @property
@@ -68,11 +68,11 @@ class SmoothedValue(object):
 
 
 class MetricLogger(object):
-    def __init__(self, delimiter="\t", log_file="training.log"):
+    def __init__(self, delimiter="\t", log_file="training.log", append=False):
         self.meters = defaultdict(SmoothedValue)
         self.delimiter = delimiter
         self.log_file = log_file
-        if self.log_file is not None:
+        if self.log_file is not None and not append:
             with open(self.log_file, "w") as f:
                 f.write("")
 
@@ -104,6 +104,9 @@ class MetricLogger(object):
         if self.log_file is not None:
             with open(self.log_file, "a") as f:
                 f.write(message + "\n")
+
+    def log(self, message):
+        self._log_to_console_and_file(message)
 
     def log_every(self, iterable, print_freq, header=None):
         i = 0
@@ -195,22 +198,11 @@ def create_small_table(small_dict):
     return table
 
 
-def warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor):
-    def f(x):
-        if x >= warmup_iters:
-            return 1
-        alpha = float(x) / warmup_iters
-        return warmup_factor * (1 - alpha) + alpha
-
-    return torch.optim.lr_scheduler.LambdaLR(optimizer, f)
-
-
 def load_weights(ckpt_path, model):
     state_dict = torch.load(ckpt_path, map_location='cpu', weights_only=True)
     state_dict = check_state_dict(state_dict)
     model.load_state_dict(state_dict)
-    epoch = int(os.path.splitext(os.path.basename(ckpt_path))[0].split('epoch_')[1].split('-')[0])
-    return epoch
+    return None
 
 
 def resume_from_ckpt(ckpt_path, model, optimizer=None, lr_scheduler=None, only_eval=False):

@@ -7,7 +7,7 @@
 # Output: ckpts/${method}/${task}/
 
 devices=${1:-"0"}
-method=${2:-"tmp"}
+method=${2:-$(basename "$(pwd)")}
 task=$(python3 -m configs --print_task)
 nproc_per_node=$(($(echo ${devices%%,} | grep -o "," | wc -l)+1))
 

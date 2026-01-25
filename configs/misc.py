@@ -16,5 +16,3 @@ class ConfigMisc:
         # Logging settings
         self.disp_period = 500
         self.tf_board = True
-        self.profiler_enabled = False
-        self.profiler_interval = 100

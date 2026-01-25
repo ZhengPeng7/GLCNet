@@ -27,27 +27,35 @@ accelerator = accelerate.Accelerator(
 from copy import deepcopy
 from tqdm import tqdm
 from eval_func import eval_detection, eval_search_cuhk, eval_search_prw, eval_search_mvn
-from utils.utils import MetricLogger, SmoothedValue, mkdir, warmup_lr_scheduler
+from utils.utils import MetricLogger, SmoothedValue, mkdir
 
 
-def train_one_epoch(model, optimizer, data_loader, epoch, lr_scheduler, output_dir, tfboard=None):
+def train_one_epoch(model, optimizer, data_loader, epoch, lr_scheduler, output_dir, tb_writer=None, iter_based_scheduler=False):
+    """
+    Args:
+        iter_based_scheduler: If True, lr_scheduler.step() is called per iteration.
+                              If False, warmup is handled internally and lr_scheduler is stepped per epoch.
+    """
     model.train()
-    metric_logger = MetricLogger(delimiter="  ", log_file=os.path.join(output_dir, 'training.log'))
+    metric_logger = MetricLogger(delimiter="  ", log_file=os.path.join(output_dir, 'training.log'), append=(epoch > 1))
     metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
     header = "Epoch: [{}]".format(epoch)
 
-    # warmup learning rate in the first epoch
-    if epoch <= 1:
-        warmup_factor = config.warmup_factor
+    # For MultiStepLR: warmup is handled internally (per-iteration in first epoch)
+    warmup_scheduler = None
+    if not iter_based_scheduler and config.warmup_enabled and epoch <= config.warmup_epochs:
         warmup_iters = len(data_loader) - 1
-        warmup_scheduler = warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
+        warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
+            optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_iters
+        )
 
     for i, (images, targets) in enumerate(
         metric_logger.log_every(data_loader, config.disp_period, header)
     ):
         with accelerator.autocast():
             loss_dict = model(images, targets)
-            loss = sum(loss_v for loss_v in loss_dict.values())
+            # Sum losses in float32 for numerical stability with bf16/fp16
+            loss = sum(loss_v.float() for loss_v in loss_dict.values())
             loss_value = loss.item()
         accelerator.backward(loss)
 
@@ -57,20 +65,26 @@ def train_one_epoch(model, optimizer, data_loader, epoch, lr_scheduler, output_d
             optimizer.step()
             optimizer.zero_grad()
 
-        if epoch <= 1:
+        # Update lr scheduler
+        if iter_based_scheduler:
+            lr_scheduler.step()
+        elif warmup_scheduler is not None:
             warmup_scheduler.step()
 
-        metric_logger.update(loss=loss_value, **loss_dict)
+        # Convert loss values to float for logging precision with bf16/fp16
+        loss_dict_float = {k: v.float().item() if hasattr(v, 'float') else v for k, v in loss_dict.items()}
+        metric_logger.update(loss=loss_value, **loss_dict_float)
         metric_logger.update(lr=optimizer.param_groups[0]['lr'])
-        if tfboard:
-            iter = (epoch - 1) * len(data_loader) + i
-            for k, v in loss_dict.items():
-                tfboard.add_scalars("train", {k: v}, iter)
+        if tb_writer and accelerator.is_main_process:
+            step = (epoch - 1) * len(data_loader) + i
+            tb_writer.add_scalar('Hyper-Params/lr', optimizer.param_groups[0]['lr'], step)
+            for k, v in loss_dict_float.items():
+                tb_writer.add_scalar(f'Loss/{k}', v, step)
 
 
 @torch.no_grad()
 def evaluate_performance(
-    model, gallery_loader, query_loader, device, use_gt=False, use_cache=False, use_cbgm=False
+    model, gallery_loader, query_loader, device, use_gt=False, use_cache=False, use_cbgm=False, save_cache=False
 ):
     """
     Args:
@@ -92,6 +106,9 @@ def evaluate_performance(
         gallery_dets, gallery_feats = [], []
         print(f'Extracting gallery at {time.asctime(time.gmtime())} ...')
         for images, targets in tqdm(gallery_loader, ncols=0):
+            # Move data to device
+            images = [img.to(device) for img in images]
+            targets = [{k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in t.items()} for t in targets]
             if not use_gt:
                 with accelerator.autocast():
                     outputs = model(images)
@@ -121,8 +138,9 @@ def evaluate_performance(
                         output["boxes"][idx_box][2] = min(wid_image-1, x2 + hei * expand_ratio)
                         output["boxes"][idx_box][3] = min(hei_image-1, y2 + hei * expand_ratio)
                 box_w_scores = torch.cat([output["boxes"], output["scores"].unsqueeze(1)], dim=1)
-                gallery_dets.append(box_w_scores.cpu().numpy())
-                gallery_feats.append(output["embeddings"].cpu().numpy())
+                # Convert to float32 before numpy for consistent precision with bf16/fp16
+                gallery_dets.append(box_w_scores.float().cpu().numpy())
+                gallery_feats.append(output["embeddings"].float().cpu().numpy())
 
         # regarding query image as gallery to detect all people
         # i.e. query person + surrounding people (context information)
@@ -130,6 +148,9 @@ def evaluate_performance(
         if use_cbgm:
             print(f'Extracting query context at {time.asctime(time.gmtime())} ...')
             for images, targets in tqdm(query_loader, ncols=0):
+                # Move data to device
+                images = [img.to(device) for img in images]
+                targets = [{k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in t.items()} for t in targets]
                 # targets will be modified in the model, so deepcopy it
                 with accelerator.autocast():
                     outputs = model(images, deepcopy(targets), query_img_as_gallery=True)
@@ -142,28 +163,34 @@ def evaluate_performance(
 
                 for output in outputs:
                     box_w_scores = torch.cat([output["boxes"], output["scores"].unsqueeze(1)], dim=1)
-                    query_dets.append(box_w_scores.cpu().numpy())
-                    query_feats.append(output["embeddings"].cpu().numpy())
+                    # Convert to float32 before numpy for consistent precision with bf16/fp16
+                    query_dets.append(box_w_scores.float().cpu().numpy())
+                    query_feats.append(output["embeddings"].float().cpu().numpy())
 
         # extract the features of query boxes
         query_box_feats = []
         print(f'Extracting query at {time.asctime(time.gmtime())} ...')
         for images, targets in tqdm(query_loader, ncols=0):
+            # Move data to device
+            images = [img.to(device) for img in images]
+            targets = [{k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in t.items()} for t in targets]
             with accelerator.autocast():
                 embeddings = model(images, targets, query_img_as_gallery=False)
             assert len(embeddings) == 1, "batch size in test phase should be 1"
-            query_box_feats.append(embeddings[0].cpu().numpy())
+            # Convert to float32 before numpy for consistent precision with bf16/fp16
+            query_box_feats.append(embeddings[0].float().cpu().numpy())
         print(f'Finish feature extraction on gallery+query at {time.asctime(time.gmtime())} .')
 
-        mkdir("data/eval_cache")
-        save_dict = {
-            "gallery_dets": gallery_dets,
-            "gallery_feats": gallery_feats,
-            "query_dets": query_dets,
-            "query_feats": query_feats,
-            "query_box_feats": query_box_feats,
-        }
-        torch.save(save_dict, "data/eval_cache/eval_cache.pth")
+        if save_cache:
+            mkdir("data/eval_cache")
+            save_dict = {
+                "gallery_dets": gallery_dets,
+                "gallery_feats": gallery_feats,
+                "query_dets": query_dets,
+                "query_feats": query_feats,
+                "query_box_feats": query_box_feats,
+            }
+            torch.save(save_dict, "data/eval_cache/eval_cache.pth")
     try:
         eval_detection(gallery_loader.dataset, gallery_dets, det_thresh=0.01)
         if gallery_loader.dataset.name == "CUHK-SYSU":
@@ -213,6 +240,7 @@ def main(args):
 
     # Handle --cbgm flag
     use_cbgm = args.cbgm or config.eval_use_cbgm
+    print('use_cbgm:', use_cbgm)
 
     if args.eval:
         assert args.ckpt, "--ckpt must be specified when --eval enabled"
@@ -223,7 +251,7 @@ def main(args):
             query_loader,
             device,
             use_gt=config.eval_use_gt,
-            use_cache=True,
+            use_cache=False,
             use_cbgm=use_cbgm,
         )
         exit(0)
@@ -231,19 +259,64 @@ def main(args):
     train_loader = build_train_loader(config)
 
     params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.SGD(
-        params,
-        lr=config.lr_scaled,
-        momentum=config.sgd_momentum,
-        weight_decay=config.sgd_weight_decay,
-    )
+    if config.optimizer == 'SGD':
+        optimizer = torch.optim.SGD(
+            params,
+            lr=config.lr,
+            momentum=config.sgd_momentum,
+            weight_decay=config.sgd_weight_decay,
+            nesterov=config.sgd_nesterov,
+        )
+    elif config.optimizer == 'AdamW':
+        optimizer = torch.optim.AdamW(
+            params,
+            lr=config.lr,
+            weight_decay=config.adamw_weight_decay,
+        )
+    elif config.optimizer == 'Lion':
+        from lion_pytorch import Lion
+        optimizer = Lion(
+            params,
+            lr=config.lr,
+            weight_decay=config.lion_weight_decay,
+            use_triton=True,
+        )
+    else:
+        raise ValueError(f"Unknown optimizer: {config.optimizer}")
 
     # accelerate preparation
     train_loader, gallery_loader, query_loader, model, optimizer = accelerator.prepare(train_loader, gallery_loader, query_loader, model, optimizer)
 
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        optimizer, milestones=config.lr_decay_milestones, gamma=config.lr_decay_rate
-    )
+    # Build LR scheduler
+    iters_per_epoch = len(train_loader)
+    iter_based_scheduler = (config.scheduler == 'CosineAnnealingLR')
+
+    if config.scheduler == 'MultiStepLR':
+        # MultiStepLR: per-epoch updates (warmup handled internally in train_one_epoch)
+        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            optimizer, milestones=config.multistep_milestones, gamma=config.multistep_gamma
+        )
+    elif config.scheduler == 'CosineAnnealingLR':
+        # CosineAnnealingLR: per-iteration updates with SequentialLR
+        warmup_iters = config.warmup_epochs * iters_per_epoch if config.warmup_enabled else 0
+        cosine_iters = (config.max_epochs - config.warmup_epochs) * iters_per_epoch if config.warmup_enabled else config.max_epochs * iters_per_epoch
+
+        if config.warmup_enabled:
+            warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
+                optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_iters
+            )
+            cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=cosine_iters, eta_min=config.cosine_eta_min
+            )
+            lr_scheduler = torch.optim.lr_scheduler.SequentialLR(
+                optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_iters]
+            )
+        else:
+            lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=cosine_iters, eta_min=config.cosine_eta_min
+            )
+    else:
+        raise ValueError(f"Unknown scheduler: {config.scheduler}")
 
     start_epoch = 1
     if args.ckpt and not args.eval:
@@ -255,32 +328,36 @@ def main(args):
     print("Creating output folder")
     mkdir(output_dir)
     print(f"Output directory: {output_dir}")
-    tfboard = None
-    if config.tf_board:
+    tb_writer = None
+    if config.tf_board and accelerator.is_main_process:
         from torch.utils.tensorboard import SummaryWriter
 
         tf_log_path = os.path.join(output_dir, "tf_log")
         mkdir(tf_log_path)
-        tfboard = SummaryWriter(log_dir=tf_log_path)
+        tb_writer = SummaryWriter(log_dir=tf_log_path)
         print(f"TensorBoard files are saved to {tf_log_path}")
 
     print("Start training")
     start_time = time.time()
-    mAP_top1_lst = []
+    main_logger = MetricLogger(log_file=os.path.join(output_dir, 'training.log'), append=True)
+    best_score, best_epoch, best_mAP, best_top1 = 0.0, 0, 0.0, 0.0
     for epoch in range(start_epoch, epochs+1):
-        print('Epoch {}:'.format(epoch))
-        train_one_epoch(model, optimizer, train_loader, epoch, lr_scheduler, output_dir, tfboard)
-        lr_scheduler.step()
+        main_logger.log('Epoch {}:'.format(epoch))
+        train_one_epoch(model, optimizer, train_loader, epoch, lr_scheduler, output_dir, tb_writer, iter_based_scheduler)
+        # For MultiStepLR (epoch-based): step after each epoch, skip during warmup
+        if not iter_based_scheduler:
+            if not config.warmup_enabled or epoch > config.warmup_epochs:
+                lr_scheduler.step()
 
         if(
             epoch >= epochs or
             (
                 epoch % config.eval_period == 0 and
-                epoch >= min(config.lr_decay_milestones[0], epochs-3)
+                epoch >= min(config.multistep_milestones[0], epochs-3)
             ) or
             (
                 'MVN' in config.task and
-                (epoch % 5 == 0 or epoch >= min(config.lr_decay_milestones[0], epochs-10))
+                (epoch % 5 == 0 or epoch >= min(config.multistep_milestones[0], epochs-10))
             )
         ):
             mAP, top1 = evaluate_performance(
@@ -292,21 +369,23 @@ def main(args):
                 use_cache=False,
                 use_cbgm=use_cbgm,
             )
-        else:
-            mAP, top1 = 0, 0
-        mAP_top1 = round(float(mAP + top1 * 0.5), 4)
-        mAP_top1_lst.append(mAP_top1)
-        print(f'mAP_top1_lst: {mAP_top1_lst}')
-        if mAP_top1 > max(mAP_top1_lst[:-1] + [0]):
-            print('Saving the best model with mAP={:.3f}, top-1={:.3f} ...'.format(round(mAP, 3), round(top1, 3)))
-            torch.save(model.state_dict(), os.path.join(output_dir, "epoch_best.pth"))
+            score = round(float(mAP + top1 * 0.5), 4)
+            if score > best_score:
+                best_score, best_epoch, best_mAP, best_top1 = score, epoch, mAP, top1
+                main_logger.log(f'New best! Epoch {epoch}: mAP={mAP:.4f}, top-1={top1:.4f}, score={score:.4f}')
+                torch.save(model.state_dict(), os.path.join(output_dir, "epoch_best.pth"))
+            else:
+                main_logger.log(f'Epoch {epoch}: mAP={mAP:.4f}, top-1={top1:.4f}, score={score:.4f} (best: Epoch {best_epoch}, score={best_score:.4f})')
         torch.save(model.state_dict(), os.path.join(output_dir, f"epoch_last.pth"))
 
-    if tfboard:
-        tfboard.close()
+    if tb_writer:
+        tb_writer.close()
+    accelerator.end_training()
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print(f"Total training time {total_time_str}")
+    main_logger.log(f"Total training time {total_time_str}")
+    if best_epoch > 0:
+        main_logger.log(f"Best model: Epoch {best_epoch}, mAP={best_mAP:.4f}, top-1={best_top1:.4f}, score={best_score:.4f}")
 
 
 if __name__ == "__main__":
