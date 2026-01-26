@@ -18,8 +18,7 @@ from losses.det import detection_losses
 from configs import config
 from models.modules import SEAttention
 
-from models.resnet import build_resnet50, build_resnet101
-from models.pvt import build_pvt
+from models.backbones import build_backbone
 from models.modules import MultiPartSpliter
 
 from models.cxt_ext import ContextExtractor1, ContextExtractor2, ContextExtractor3_scene, ContextExtractor3_group
@@ -29,15 +28,7 @@ class GLCNet(nn.Module):
     def __init__(self, cfg):
         super(GLCNet, self).__init__()
         print('Using backbone:', config.bb)
-        if config.bb == 'resnet50':
-            backbone, box_head = build_resnet50(pretrained=True)
-        elif config.bb == 'resnet101':
-            backbone, box_head = build_resnet101(pretrained=True)
-        elif config.bb == 'pvtv2':
-            backbone, box_head = build_pvt(weights=config.weights_pvt)
-        else:
-            print('Not a valid backbone in `config.py`')
-            exit()
+        backbone, box_head = build_backbone(config.bb, pretrained=True)
 
         anchor_generator = AnchorGenerator(
             sizes=((32, 64, 128, 256, 512),), aspect_ratios=((0.5, 1.0, 2.0),)

@@ -21,6 +21,9 @@ cp ./losses/*.py ../${repo}/losses
 mkdir ../${repo}/models
 cp ./models/*.py ../${repo}/models
 
+mkdir ../${repo}/models/backbones
+cp ./models/backbones/*.py ../${repo}/models/backbones
+
 mkdir ../${repo}/datasets
 cp ./datasets/*.py ../${repo}/datasets
 

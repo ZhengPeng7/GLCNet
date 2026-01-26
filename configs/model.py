@@ -4,21 +4,46 @@ import os
 class ConfigModel:
     def __init__(self, base) -> None:
         # Backbone settings
-        self.bb = ['resnet50', 'resnet101', 'pvtv2'][0]
-        self.freeze_bb = False
+        self.bb = [
+            'resnet50', 'resnet101',                                    # ResNet series
+            'swin_v1_l', 'swin_v1_b',                                   # Swin Transformer v1
+            'dino_v3_b', 'dino_v3_l', 'dino_v3_h_plus', 'dino_v3_7b',   # DINOv3 large
+            'pvt_v2_b2', 'pvt_v2_b1',                                   # PVT v2 series
+        ][0]
+        self.freeze_bb = any(x in self.bb for x in ['dino_v3', 'swin_v1'])
         self.use_bn = True
 
-        # Backbone output channels (auto-configured based on backbone)
-        self.bb_out_channels = self._get_bb_out_channels()
+        # Backbone output channels: [res3_channels, res4_channels]
+        # For Swin: res3=stage2 (4*C), res4=stage3 (8*C) to match ResNet stride 16/32
+        # For DINOv3: all stages have same channels (ViT architecture)
+        self.bb_out_channels_collection = {
+            'resnet50': [1024, 2048], 'resnet101': [1024, 2048],
+            'pvt_v2_b2': [320, 512], 'pvt_v2_b1': [320, 512],
+            'swin_v1_l': [768, 1536], 'swin_v1_b': [512, 1024],
+            'dino_v3_7b': [4096, 4096], 'dino_v3_h_plus': [1280, 1280], 'dino_v3_l': [1024, 1024],
+            'dino_v3_b': [768, 768],
+        }
+        self.bb_out_channels = self.bb_out_channels_collection.get(self.bb, [1024, 2048])
 
-        # Backbone weights for PVT
-        model_name_dir = 'pvt'
-        self.weights_pvt = [
-            os.path.join(base.sys_home_dir, 'weights/cv', model_name_dir, 'pvt_v2_b2.pth'),
-            os.path.join(base.sys_home_dir, 'weights/cv', model_name_dir, 'pvt_v2_b1.pth'),
-            os.path.join(base.sys_home_dir, 'weights/cv', model_name_dir, 'pvt_v2_b0.pth'),
-            '',
-        ][0]
+        # Backbone weights
+        self.weights_root_dir = os.path.join(base.sys_home_dir, 'weights/cv')
+        model_name_to_weights_file = {
+            'pvt_v2_b2': 'pvt_v2_b2.pth', 'pvt_v2_b1': 'pvt_v2_b1.pth',
+            'swin_v1_l': 'swin_large_patch4_window12_384_22kto1k.pth', 'swin_v1_b': 'swin_base_patch4_window12_384_22kto1k.pth',
+            'dino_v3_7b': 'vit_7b_patch16_dinov3.lvd1689m.pth', 'dino_v3_h_plus': 'vit_huge_plus_patch16_dinov3.lvd1689m.pth',
+            'dino_v3_l': 'vit_large_patch16_dinov3.lvd1689m.pth', 'dino_v3_b': 'vit_base_patch16_dinov3.lvd1689m.pth',
+        }
+        self.weights = {}
+        for model_name, weights_file in model_name_to_weights_file.items():
+            if 'dino_v3' in model_name:
+                model_name_dir = 'DINOv3-timm'
+            elif 'swin_v1' in model_name:
+                model_name_dir = 'swin'
+            elif 'pvt_v2' in model_name:
+                model_name_dir = 'pvt'
+            else:
+                model_name_dir = ''
+            self.weights[model_name] = os.path.join(self.weights_root_dir, model_name_dir, weights_file)
 
         # Context extraction settings
         self.cxt_scene_enabled = True
@@ -36,6 +61,7 @@ class ConfigModel:
 
         # Memory optimization settings
         self.gradient_checkpointing = False  # Save ~30-40% memory, slightly slower
+        self.SDPA_enabled = True  # Use PyTorch scaled dot product attention
 
         # Multi-part matching settings
         self.multi_part_matching = True
@@ -84,19 +110,6 @@ class ConfigModel:
         self.roi_head_score_thresh_test = 0.5
         self.roi_head_nms_thresh_test = 0.4
         self.roi_head_detections_per_image_test = 300
-
-    def _get_bb_out_channels(self):
-        if 'resnet' in self.bb:
-            return [1024, 2048]
-        elif 'pvt' in self.bb:
-            if hasattr(self, 'weights_pvt'):
-                if '_b2' in self.weights_pvt or '_b1' in self.weights_pvt:
-                    return [320, 512]
-                elif '_b0' in self.weights_pvt:
-                    return [160, 256]
-            return [320, 512]
-        else:
-            return [512, 1024]
 
     def _get_nae_dims(self):
         if (self.nae_mix_res3 or self.nae_multi) and self.nae_feature_seperate:

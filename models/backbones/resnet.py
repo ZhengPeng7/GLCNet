@@ -7,8 +7,10 @@ import torch.nn.functional as F
 from torchvision.models import resnet, ResNet50_Weights, ResNet101_Weights
 from torch import nn
 from configs import config
+
 torch_version = version.parse(torch.__version__.split("+")[0])
 torch_version_legacy = version.parse('1.10.2')
+
 
 class Backbone(nn.Sequential):
     def __init__(self, bb_model):
@@ -30,7 +32,6 @@ class Backbone(nn.Sequential):
         self.out_channels = config.bb_out_channels[0]
 
     def forward(self, x):
-        # using the forward method from nn.Sequential
         feat = self.bb(x)
         return OrderedDict([["feat_res3", feat]])
 
@@ -58,7 +59,6 @@ def build_resnet50(pretrained=True):
         else:
             bb_model = resnet.resnet50(weights=ResNet50_Weights.DEFAULT if pretrained else None)
         if bb_resume_custom == 'Pre-trained PS':
-            # 'https://huggingface.co/Alice10/psvision/resolve/main/resnet50-ps12.pth'
             bb_ckpt_path = os.path.join(os.environ['HOME'], '.cache/torch/hub/checkpoints', 'resnet50-ps12.pth')
         elif 'MovieNet-PS-N' in bb_resume_custom:
             bb_ckpt_path = os.path.join(os.environ['HOME'], 'weights', 'resnet50-pt_mvnps_n{}-ep{}.pth'.format(bb_resume_custom.split('-N')[-1].split('-ep')[0], bb_resume_custom.split('-ep')[-1].split('.pth')[0]))
@@ -109,7 +109,6 @@ def load_bb_weights(bb_model, bb_ckpt_path):
         save_model = {k.lstrip('backbone.bb.'): v for k, v in save_model.items()}
     model_dict = bb_model.state_dict()
     state_dict = {k: v if v.size() == model_dict[k].size() else model_dict[k] for k, v in save_model.items() if k in model_dict.keys()}
-    # to ignore the weights with mismatched size when I modify the backbone itself.
     if not state_dict:
         save_model_keys = list(save_model.keys())
         sub_item = save_model_keys[0] if len(save_model_keys) == 1 else None
