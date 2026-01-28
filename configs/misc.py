@@ -14,5 +14,5 @@ class ConfigMisc:
         self.eval_use_cbgm = False
 
         # Logging settings
-        self.disp_period = 20
+        self.disp_period = 500
         self.tf_board = True

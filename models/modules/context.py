@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.checkpoint import checkpoint
-from models.modules import CoAttLayer, ChannelAttention, SpatialAttention
+from models.modules.components import CoAttLayer, ChannelAttention, SpatialAttention
 from configs import config
 
 
@@ -115,4 +115,3 @@ class ContextExtractor3_group(nn.Module):
         x_ms = x_1x1.float() + x_3x3.float() + x_5x5.float()
         x_out = (x_ms * self.channel_attention(x).float() + x.float()).to(x.dtype)
         return self.avgpool(x_out)
-

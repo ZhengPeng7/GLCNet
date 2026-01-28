@@ -13,12 +13,8 @@ class Config:
         # Main active settings
         self.batch_size_train = 3
 
-        # Faster-training settings (mixed_precision defined in configs/train.py)
-        self.compile = False
-        self.precisionHigh = True
-
         # PATH settings
-        self.sys_home_dir = [os.path.expanduser('~'), '/workspace'][1]
+        self.sys_home_dir = ['/mnt/shared-storage-gpfs2/single-cell/zhengpeng', '/workspace'][1]
 
         # Import sub-configs
         for sub_cfg_cls in (ConfigTask, ConfigData, ConfigModel, ConfigTrain, ConfigLoss, ConfigMisc):

@@ -2,7 +2,6 @@ class ConfigTrain:
     def __init__(self, base) -> None:
         # Faster-training settings
         self.precisionHigh = True
-        self.compile = False
         self.mixed_precision = ['bf16', 'fp16', 'no'][0]
 
         # Optimizer selection: SGD, AdamW, Lion

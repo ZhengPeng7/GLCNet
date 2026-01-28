@@ -5,10 +5,10 @@ class ConfigModel:
     def __init__(self, base) -> None:
         # Backbone settings
         self.bb = [
-            'resnet50', 'resnet101',                                    # ResNet series
-            'swin_v1_l', 'swin_v1_b',                                   # Swin Transformer v1
-            'dino_v3_b', 'dino_v3_l', 'dino_v3_h_plus', 'dino_v3_7b',   # DINOv3 large
-            'pvt_v2_b2', 'pvt_v2_b1',                                   # PVT v2 series
+            'resnet50', 'resnet101',                                    # ResNet
+            'swin_v1_l', 'swin_v1_b',                                   # Swin Transformer
+            'dino_v3_b', 'dino_v3_l', 'dino_v3_h_plus', 'dino_v3_7b',   # DINOv3
+            'pvt_v2_b2', 'pvt_v2_b1',                                   # PVT v2
         ][0]
         self.freeze_bb = any(x in self.bb for x in ['dino_v3', 'swin_v1'])
         self.use_bn = True

@@ -16,12 +16,9 @@ from torchvision.ops import boxes as box_ops
 from losses.oim import OIMLoss
 from losses.det import detection_losses
 from configs import config
-from models.modules import SEAttention
-
+from models.modules.components import SEAttention, MultiPartSpliter
+from models.modules.context import ContextExtractor1, ContextExtractor2, ContextExtractor3_scene, ContextExtractor3_group
 from models.backbones import build_backbone
-from models.modules import MultiPartSpliter
-
-from models.cxt_ext import ContextExtractor1, ContextExtractor2, ContextExtractor3_scene, ContextExtractor3_group
 
 
 class GLCNet(nn.Module):

@@ -6,6 +6,11 @@ import time
 import torch
 import torch.utils.data
 
+pytorch_version_tuple = tuple(int(x) for x in torch.__version__.split('+')[0].split('.')[:3])
+if pytorch_version_tuple >= (2, 5, 0):
+    alloc_conf_key = 'PYTORCH_ALLOC_CONF' if pytorch_version_tuple >= (2, 9, 0) else 'PYTORCH_CUDA_ALLOC_CONF'
+    os.environ[alloc_conf_key] = 'expandable_segments:True'
+
 from datasets import build_test_loader, build_train_loader
 from models.glcnet import GLCNet
 from utils.utils import mkdir, load_weights, set_random_seed, MetricLogger, SmoothedValue
@@ -91,10 +96,13 @@ def main(args):
     model = GLCNet(config)
     model.to(device)
 
-    if config.compile:
-        model = torch.compile(model, mode=['default', 'reduce-overhead', 'max-autotune'][0])
     if config.precisionHigh:
         torch.set_float32_matmul_precision('high')
+
+    start_epoch = 1
+    if args.ckpt:
+        print('Resuming from', args.ckpt)
+        _ = load_weights(args.ckpt, model) + 1
 
     print("Loading data")
     train_loader = build_train_loader(config)
@@ -138,12 +146,10 @@ def main(args):
     iter_based_scheduler = (config.scheduler == 'CosineAnnealingLR')
 
     if config.scheduler == 'MultiStepLR':
-        # MultiStepLR: per-epoch updates (warmup handled internally in train_one_epoch)
         lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
             optimizer, milestones=config.multistep_milestones, gamma=config.multistep_gamma
         )
     elif config.scheduler == 'CosineAnnealingLR':
-        # CosineAnnealingLR: per-iteration updates with SequentialLR
         warmup_iters = config.warmup_epochs * iters_per_epoch if config.warmup_enabled else 0
         cosine_iters = (config.max_epochs - config.warmup_epochs) * iters_per_epoch if config.warmup_enabled else config.max_epochs * iters_per_epoch
 
@@ -163,12 +169,6 @@ def main(args):
             )
     else:
         raise ValueError(f"Unknown scheduler: {config.scheduler}")
-
-    start_epoch = 1
-    if args.ckpt:
-        print('Resuming from', args.ckpt)
-        # Resume from models pre-trained on MovieNet-PS. Otherwise, assign the return value to `start_epoch`.
-        _ = load_weights(args.ckpt, model) + 1
 
     print("Creating output folder")
     mkdir(output_dir)

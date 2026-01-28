@@ -6,6 +6,11 @@ import time
 import torch
 import torch.utils.data
 
+pytorch_version_tuple = tuple(int(x) for x in torch.__version__.split('+')[0].split('.')[:3])
+if pytorch_version_tuple >= (2, 5, 0):
+    alloc_conf_key = 'PYTORCH_ALLOC_CONF' if pytorch_version_tuple >= (2, 9, 0) else 'PYTORCH_CUDA_ALLOC_CONF'
+    os.environ[alloc_conf_key] = 'expandable_segments:True'
+
 from copy import deepcopy
 from tqdm import tqdm
 
@@ -173,10 +178,11 @@ def main(args):
     model = GLCNet(config)
     model.to(device)
 
-    if config.compile:
-        model = torch.compile(model, mode=['default', 'reduce-overhead', 'max-autotune'][0])
     if config.precisionHigh:
         torch.set_float32_matmul_precision('high')
+
+    assert args.ckpt, "--ckpt must be specified for evaluation"
+    load_weights(args.ckpt, model)
 
     print("Loading data")
     gallery_loader, query_loader = build_test_loader(config)
@@ -184,9 +190,6 @@ def main(args):
     # Handle --cbgm flag
     use_cbgm = args.cbgm or config.eval_use_cbgm
     print('use_cbgm:', use_cbgm)
-
-    assert args.ckpt, "--ckpt must be specified for evaluation"
-    load_weights(args.ckpt, model)
 
     mAP, top1 = evaluate_performance(
         model,
