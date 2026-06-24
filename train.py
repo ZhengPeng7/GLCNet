@@ -13,7 +13,7 @@ if pytorch_version_tuple >= (2, 5, 0):
 
 from datasets import build_test_loader, build_train_loader
 from models.glcnet import GLCNet
-from utils.utils import mkdir, load_weights, set_random_seed, MetricLogger, SmoothedValue
+from utils.utils import mkdir, set_random_seed, MetricLogger, SmoothedValue
 from configs import config
 from eval import evaluate_performance
 
@@ -26,7 +26,10 @@ accelerator = accelerate.Accelerator(
     gradient_accumulation_steps=1,
     kwargs_handlers=[
         accelerate.utils.InitProcessGroupKwargs(backend="nccl", timeout=datetime.timedelta(seconds=3600)),
-        accelerate.utils.DistributedDataParallelKwargs(find_unused_parameters=False),
+        # broadcast_buffers=False: OIM memory banks (lut/cq/header_cq) are kept in sync across ranks
+        # manually via all-gather in OIMLoss._update_banks; the default rank0 re-broadcast would
+        # instead DISCARD ranks 1..N's bank updates. All other buffers are identical across ranks.
+        accelerate.utils.DistributedDataParallelKwargs(find_unused_parameters=False, broadcast_buffers=False),
         accelerate.utils.GradScalerKwargs(backoff_factor=0.5)],
 )
 
@@ -38,14 +41,14 @@ def train_one_epoch(model, optimizer, data_loader, epoch, lr_scheduler, output_d
                               If False, warmup is handled internally and lr_scheduler is stepped per epoch.
     """
     model.train()
-    metric_logger = MetricLogger(delimiter="  ", log_file=os.path.join(output_dir, 'training.log'), append=(epoch > 1))
+    metric_logger = MetricLogger(delimiter="  ", log_file=os.path.join(output_dir, 'training.log'), append=(epoch > 1), main_process=accelerator.is_main_process)
     metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
     header = "Epoch: [{}]".format(epoch)
 
     # For MultiStepLR: warmup is handled internally (per-iteration in first epoch)
     warmup_scheduler = None
     if not iter_based_scheduler and config.warmup_enabled and epoch <= config.warmup_epochs:
-        warmup_iters = len(data_loader) - 1
+        warmup_iters = len(data_loader)
         warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
             optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_iters
         )
@@ -53,14 +56,13 @@ def train_one_epoch(model, optimizer, data_loader, epoch, lr_scheduler, output_d
     for i, (images, targets) in enumerate(
         metric_logger.log_every(data_loader, config.disp_period, header)
     ):
-        with accelerator.autocast():
-            loss_dict = model(images, targets)
-            # Sum losses in float32 for numerical stability with bf16/fp16
-            loss = sum(loss_v.float() for loss_v in loss_dict.values())
-            loss_value = loss.item()
-        accelerator.backward(loss)
-
         with accelerator.accumulate(model):
+            with accelerator.autocast():
+                loss_dict = model(images, targets)
+                # Sum losses in float32 for numerical stability with bf16/fp16
+                loss = sum(loss_v.float() for loss_v in loss_dict.values())
+                loss_value = loss.item()
+            accelerator.backward(loss)
             clip_val = config.clip_gradients if config.clip_gradients > 0 else 1.0
             accelerator.clip_grad_value_(model.parameters(), clip_val)
             optimizer.step()
@@ -93,16 +95,11 @@ def main(args):
         set_random_seed(config.seed)
 
     print("Creating model")
-    model = GLCNet(config)
+    model = GLCNet()
     model.to(device)
 
     if config.precisionHigh:
         torch.set_float32_matmul_precision('high')
-
-    start_epoch = 1
-    if args.ckpt:
-        print('Resuming from', args.ckpt)
-        _ = load_weights(args.ckpt, model) + 1
 
     print("Loading data")
     train_loader = build_train_loader(config)
@@ -139,7 +136,9 @@ def main(args):
         raise ValueError(f"Unknown optimizer: {config.optimizer}")
 
     # accelerate preparation
-    train_loader, gallery_loader, query_loader, model, optimizer = accelerator.prepare(train_loader, gallery_loader, query_loader, model, optimizer)
+    # Only train_loader is sharded across processes. gallery/query loaders stay full so the
+    # main-process eval (below) sees the complete dataset on every process count (1 or N).
+    train_loader, model, optimizer = accelerator.prepare(train_loader, model, optimizer)
 
     # Build LR scheduler
     iters_per_epoch = len(train_loader)
@@ -184,9 +183,9 @@ def main(args):
 
     print("Start training")
     start_time = time.time()
-    main_logger = MetricLogger(log_file=os.path.join(output_dir, 'training.log'), append=True)
+    main_logger = MetricLogger(log_file=os.path.join(output_dir, 'training.log'), append=True, main_process=accelerator.is_main_process)
     best_score, best_epoch, best_mAP, best_top1 = 0.0, 0, 0.0, 0.0
-    for epoch in range(start_epoch, epochs+1):
+    for epoch in range(1, epochs+1):
         main_logger.log('Epoch {}:'.format(epoch))
         train_one_epoch(model, optimizer, train_loader, epoch, lr_scheduler, output_dir, tb_writer, iter_based_scheduler)
         # For MultiStepLR (epoch-based): step after each epoch, skip during warmup
@@ -205,23 +204,29 @@ def main(args):
                 (epoch % 5 == 0 or epoch >= min(config.multistep_milestones[0], epochs-10))
             )
         ):
-            mAP, top1 = evaluate_performance(
-                model,
-                gallery_loader,
-                query_loader,
-                device,
-                use_gt=config.eval_use_gt,
-                use_cache=False,
-                use_cbgm=use_cbgm,
-            )
-            score = round(float(mAP + top1 * 0.5), 4)
-            if score > best_score:
-                best_score, best_epoch, best_mAP, best_top1 = score, epoch, mAP, top1
-                main_logger.log(f'New best! Epoch {epoch}: mAP={mAP:.4f}, top-1={top1:.4f}, score={score:.4f}')
-                torch.save(model.state_dict(), os.path.join(output_dir, "epoch_best.pth"))
-            else:
-                main_logger.log(f'Epoch {epoch}: mAP={mAP:.4f}, top-1={top1:.4f}, score={score:.4f} (best: Epoch {best_epoch}, score={best_score:.4f})')
-        torch.save(model.state_dict(), os.path.join(output_dir, f"epoch_last.pth"))
+            # Eval (inference + metrics) runs on the main process only, over the full (un-sharded)
+            # gallery/query loaders, using the unwrapped model so no DDP collectives fire during the
+            # solo eval. Other ranks skip straight to the unconditional epoch barrier below.
+            if accelerator.is_main_process:
+                mAP, top1 = evaluate_performance(
+                    accelerator.unwrap_model(model),
+                    gallery_loader,
+                    query_loader,
+                    device,
+                    use_gt=config.eval_use_gt,
+                    use_cache=False,
+                    use_cbgm=use_cbgm,
+                )
+                score = round(float(mAP + top1 * 0.5), 4)
+                if score > best_score:
+                    best_score, best_epoch, best_mAP, best_top1 = score, epoch, mAP, top1
+                    main_logger.log(f'New best! Epoch {epoch}: mAP={mAP:.4f}, top-1={top1:.4f}, score={score:.4f}')
+                    torch.save(accelerator.unwrap_model(model).state_dict(), os.path.join(output_dir, "epoch_best.pth"))
+                else:
+                    main_logger.log(f'Epoch {epoch}: mAP={mAP:.4f}, top-1={top1:.4f}, score={score:.4f} (best: Epoch {best_epoch}, score={best_score:.4f})')
+        if accelerator.is_main_process:
+            torch.save(accelerator.unwrap_model(model).state_dict(), os.path.join(output_dir, f"epoch_last.pth"))
+        accelerator.wait_for_everyone()
 
     if tb_writer:
         tb_writer.close()
@@ -236,7 +241,6 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a person search network.")
     parser.add_argument("--ckpt_dir", default='', help="Path to save checkpoints.")
-    parser.add_argument("--ckpt", default='', help="Path to checkpoint to resume training.")
     parser.add_argument("--cbgm", action="store_true", help="Use CBGM algorithm for evaluation.")
     args = parser.parse_args()
     main(args)

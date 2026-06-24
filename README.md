@@ -53,14 +53,23 @@ pip install -r requirements.txt
 
 ### Data
 Find all relevant data on [my google-drive folder](https://drive.google.com/drive/u/0/folders/1bEd_NAzdP6xCrldQBcKOHkCvkupNy0ix) and MovieNet-PS on [its HF dataset page](https://huggingface.co/datasets/ZhengPeng7/MovieNet-PS).
-Set the variable `SYS_HOME_DIR` in `defaults.py` to the root path of all projects. I always set the structure of file system in my machine as `SYS_HOME_DIR/codes/[ps/...], SYS_HOME_DIR/datasets/[ps/...], SYS_HOME_DIR/weights/[swin/pvt/...]`.
+Set the variable `sys_home_dir` in `configs/config.py` to the root path of all projects. Datasets are read from `sys_home_dir/datasets/ps/(cuhk_sysu, prw, MovieNet-PS)` and backbone weights from `sys_home_dir/weights/cv/`.
+
+### Config
+
+There is no YACS or yaml config. All settings live in plain-Python files under `configs/`: `task.py` (dataset selection, per-task LUT/CQ/epochs/input size), `model.py` (backbone, context, multi-part, NAE, RPN/ROI, backbone-weight paths), `train.py` (optimizer/LR/scheduler/precision), plus `loss.py`, `data.py`, `misc.py`. They are merged into one `config` object in `configs/config.py`. Switch dataset by editing `task` in `configs/task.py`.
 
 ### Train
 
-`sh ./run_${DATASET}.sh CUDA_DEVICE`
+`sh ./scripts/train.sh GPU_IDS METHOD`
+
+Task is read from `configs/task.py`; checkpoints go to `ckpts/METHOD_TASK/`. Example: `sh ./scripts/train.sh 0 exp1` (multi-GPU: `sh ./scripts/train.sh 0,1,2,3 exp1`).
 
 ### Test
-`sh ./test_${DATASET}.sh CUDA_DEVICE`
+
+`sh ./scripts/test.sh GPU_IDS METHOD`
+
+Evaluates `ckpts/METHOD_TASK/epoch_best.pth`. To evaluate a checkpoint directly: `python eval.py --ckpt path/to/epoch_best.pth` (add `--cbgm` for the CBGM algorithm).
 
 ### Inference
 Run the `demo.py` to make inference on given images. GLCNet runs at **10.3 fps** on a single Tesla V100 GPU with batch_size 3.

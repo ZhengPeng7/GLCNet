@@ -20,7 +20,7 @@ def _compute_iou(a, b):
     y2 = min(a[3], b[3])
     inter = max(0, x2 - x1) * max(0, y2 - y1)
     union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
-    return inter * 1.0 / union
+    return inter * 1.0 / union if union > 0 else 0.0
 
 
 def _process_single_detection(args):
@@ -29,7 +29,7 @@ def _process_single_detection(args):
 
     gt_boxes = anno["boxes"]
     if labeled_only:
-        inds = np.where(anno["pids"].ravel() != 5555)[0]
+        inds = np.where(anno["pids"].ravel() != config.unlabeled_pid)[0]
         if len(inds) == 0:
             return [], [], 0, 0
         gt_boxes = gt_boxes[inds]
@@ -118,11 +118,23 @@ def eval_detection(
     return det_rate, ap
 
 
+# Read-only objects shared across all query workers — passed once via the Pool initializer
+# (or set directly in the single-process path) instead of being re-pickled per query task.
+_QUERY_SHARED = {}
+
+
+def _init_query_worker(shared):
+    _QUERY_SHARED.clear()
+    _QUERY_SHARED.update(shared)
+
+
 def _process_single_query_protocol(args):
     """Process a single query for protocol-based datasets (CUHK-SYSU, MVN)."""
     (i, protoc_query, protoc_gallery, feat_q, query_dets_i, query_feats_i,
-     name_to_det_feat, gallery_imgs, use_full_set, cbgm, k1, k2, topk,
+     use_full_set, cbgm, k1, k2, topk,
      dataset_type, save_limit) = args
+    name_to_det_feat = _QUERY_SHARED["name_to_det_feat"]
+    gallery_imgs = _QUERY_SHARED["gallery_imgs"]
 
     y_true, y_score = [], []
     imgs, rois = [], []
@@ -162,7 +174,7 @@ def _process_single_query_protocol(args):
             continue
 
         assert feat_g.size == np.prod(feat_g.shape[:2])
-        feat_g = feat_g.reshape(feat_g.shape[:2]).astype(np.float64)
+        feat_g = feat_g.reshape(feat_g.shape[:2])  # already float64 (converted once at name_to_det_feat build)
         sim = feat_g.dot(feat_q).ravel()
 
         if gallery_imname in name2sim:
@@ -181,7 +193,7 @@ def _process_single_query_protocol(args):
                 continue
             det, feat_g = name_to_det_feat[gallery_imname]
             assert feat_g.size == np.prod(feat_g.shape[:2])
-            feat_g = feat_g.reshape(feat_g.shape[:2]).astype(np.float64)
+            feat_g = feat_g.reshape(feat_g.shape[:2])  # already float64 (converted once at name_to_det_feat build)
             sim = feat_g.dot(feat_q).ravel()
             label = np.zeros(len(sim), dtype=np.int32)
             y_true.extend(list(label))
@@ -202,11 +214,12 @@ def _process_single_query_protocol(args):
             qfeats = query_feats_i[:k2].astype(np.float64)
             assert np.abs(query_roi - qboxes[0][:4].astype(np.float64)).sum() <= 0.01, "query_roi must be the first one in pboxes"
 
-            graph = []
             feat_g_f64 = feat_g.astype(np.float64)
-            for indx_i, pfeat in enumerate(qfeats):
-                for indx_j, gfeat in enumerate(feat_g_f64):
-                    graph.append((indx_i, indx_j, float((pfeat * gfeat).sum())))
+            # one BLAS matmul replaces the k2*N scalar dot loop; identical (i,j,weight) tuples/order,
+            # weights differ only at ULP (sum reassociation) so the Hungarian match / ranking is unchanged.
+            sim_mat = qfeats @ feat_g_f64.T
+            graph = [(indx_i, indx_j, float(sim_mat[indx_i, indx_j]))
+                     for indx_i in range(sim_mat.shape[0]) for indx_j in range(sim_mat.shape[1])]
             km_res, max_val = run_kuhn_munkres(graph)
 
             for indx_i, indx_j, _ in km_res:
@@ -243,7 +256,7 @@ def _process_single_query_protocol(args):
     y_score = np.asarray(y_score, dtype=np.float64)
     y_true = np.asarray(y_true)
     assert count_tp <= count_gt
-    recall_rate = count_tp * 1.0 / count_gt
+    recall_rate = count_tp * 1.0 / count_gt if count_gt > 0 else 0.0
     ap = 0 if count_tp == 0 else average_precision_score(y_true, y_score) * recall_rate
     inds = np.argsort(y_score)[::-1]
     y_score = y_score[inds]
@@ -252,7 +265,7 @@ def _process_single_query_protocol(args):
 
     # 6. Save result for JSON dump (only wrong results)
     new_entry = None
-    if not int(y_true[0]) and i < save_limit:
+    if len(y_true) > 0 and not int(y_true[0]) and i < save_limit:
         new_entry = {
             "query_img": str(query_imname),
             "query_roi": list(map(float, list(query_roi))),
@@ -314,7 +327,7 @@ def eval_search_cuhk(
             scores = det[:, 4].ravel()
             inds = np.where(scores >= det_thresh)[0]
             if len(inds) > 0:
-                name_to_det_feat[name] = (det[inds], feat[inds])
+                name_to_det_feat[name] = (det[inds], feat[inds].astype(np.float64))
 
     topk = [1, 5, 10]
     ret = {"image_root": gallery_dataset.img_prefix, "results": []}
@@ -327,16 +340,18 @@ def eval_search_cuhk(
         query_feats_i = query_feats[i] if cbgm and len(query_feats) > i else None
         args_list.append((
             i, protoc["Query"][i], protoc["Gallery"][i], feat_q, query_dets_i, query_feats_i,
-            name_to_det_feat, gallery_dataset.imgs, use_full_set, cbgm, k1, k2, topk,
+            use_full_set, cbgm, k1, k2, topk,
             'cuhk', 100000
         ))
 
     # Parallel processing
     print(f"CUHK search: {len(args_list)} queries...")
+    shared = {"name_to_det_feat": name_to_det_feat, "gallery_imgs": gallery_dataset.imgs}
     if num_workers > 1:
-        with Pool(num_workers) as pool:
+        with Pool(num_workers, initializer=_init_query_worker, initargs=(shared,)) as pool:
             results = pool.map(_process_single_query_protocol, args_list)
     else:
+        _init_query_worker(shared)
         results = [_process_single_query_protocol(args) for args in tqdm(args_list, desc="CUHK search", ncols=0)]
 
     # Aggregate results
@@ -401,11 +416,11 @@ def eval_search_mvn(
     name_to_det_feat = {}
     for anno, det, feat in zip(annos, gallery_dets, gallery_feats):
         name = anno["img_name"]
-        if det != []:
+        if len(det) != 0:
             scores = det[:, 4].ravel()
             inds = np.where(scores >= det_thresh)[0]
             if len(inds) > 0:
-                name_to_det_feat[name] = (det[inds], feat[inds])
+                name_to_det_feat[name] = (det[inds], feat[inds].astype(np.float64))
 
     topk = [1, 5, 10]
     ret = {"image_root": gallery_dataset.img_prefix, "results": []}
@@ -418,16 +433,18 @@ def eval_search_mvn(
         query_feats_i = query_feats[i] if cbgm and len(query_feats) > i else None
         args_list.append((
             i, protoc["Query"][i], protoc["Gallery"][i], feat_q, query_dets_i, query_feats_i,
-            name_to_det_feat, gallery_dataset.imgs, use_full_set, cbgm, k1, k2, topk,
+            use_full_set, cbgm, k1, k2, topk,
             'mvn', 100000
         ))
 
     # Parallel processing
     print(f"MVN search: {len(args_list)} queries...")
+    shared = {"name_to_det_feat": name_to_det_feat, "gallery_imgs": gallery_dataset.imgs}
     if num_workers > 1:
-        with Pool(num_workers) as pool:
+        with Pool(num_workers, initializer=_init_query_worker, initargs=(shared,)) as pool:
             results = pool.map(_process_single_query_protocol, args_list)
     else:
+        _init_query_worker(shared)
         results = [_process_single_query_protocol(args) for args in tqdm(args_list, desc="MVN search", ncols=0)]
 
     # Aggregate results
@@ -455,8 +472,10 @@ def eval_search_mvn(
 
 def _process_single_query_prw(args):
     """Process a single query for PRW dataset (for parallel execution)."""
-    (i, query_anno, feat_p, query_det, query_feat, annos, name_to_det_feat,
+    (i, query_anno, feat_p, query_det, query_feat,
      ignore_cam_id, cbgm, k1, k2, topk) = args
+    annos = _QUERY_SHARED["annos"]
+    name_to_det_feat = _QUERY_SHARED["name_to_det_feat"]
 
     y_true, y_score = [], []
     imgs, rois = [], []
@@ -475,7 +494,7 @@ def _process_single_query_prw(args):
     query_gts = {}
     for item in gallery_imgs:
         roi = item["boxes"][item["pids"] == query_pid]
-        query_gts[item["img_name"]] = list(map(float, roi)) if isinstance(roi, list) else list(map(float, roi.squeeze()))
+        query_gts[item["img_name"]] = list(map(float, roi.squeeze()))
 
     # Construct gallery set for this query
     if ignore_cam_id:
@@ -496,7 +515,7 @@ def _process_single_query_prw(args):
             continue
         det, feat_g = name_to_det_feat[gallery_imname]
         assert feat_g.size == np.prod(feat_g.shape[:2])
-        feat_g = feat_g.reshape(feat_g.shape[:2]).astype(np.float64)
+        feat_g = feat_g.reshape(feat_g.shape[:2])  # already float64 (converted once at name_to_det_feat build)
         sim = feat_g.dot(feat_p).ravel()
 
         if gallery_imname in name2sim:
@@ -517,11 +536,12 @@ def _process_single_query_prw(args):
             qfeats = query_feat[:k2].astype(np.float64)
             assert np.abs(query_roi - qboxes[0][:4].astype(np.float64)).sum() <= 0.01
 
-            graph = []
             feat_g_f64 = feat_g.astype(np.float64)
-            for indx_i, pfeat in enumerate(qfeats):
-                for indx_j, gfeat in enumerate(feat_g_f64):
-                    graph.append((indx_i, indx_j, float((pfeat * gfeat).sum())))
+            # one BLAS matmul replaces the k2*N scalar dot loop; identical (i,j,weight) tuples/order,
+            # weights differ only at ULP (sum reassociation) so the Hungarian match / ranking is unchanged.
+            sim_mat = qfeats @ feat_g_f64.T
+            graph = [(indx_i, indx_j, float(sim_mat[indx_i, indx_j]))
+                     for indx_i in range(sim_mat.shape[0]) for indx_j in range(sim_mat.shape[1])]
             km_res, max_val = run_kuhn_munkres(graph)
 
             for indx_i, indx_j, _ in km_res:
@@ -553,7 +573,7 @@ def _process_single_query_prw(args):
     y_score = np.asarray(y_score, dtype=np.float64)
     y_true = np.asarray(y_true)
     assert count_tp <= count_gt
-    recall_rate = count_tp * 1.0 / count_gt
+    recall_rate = count_tp * 1.0 / count_gt if count_gt > 0 else 0.0
     ap = 0 if count_tp == 0 else average_precision_score(y_true, y_score) * recall_rate
     inds = np.argsort(y_score)[::-1]
     y_score = y_score[inds]
@@ -617,7 +637,7 @@ def eval_search_prw(
         scores = det[:, 4].ravel()
         inds = np.where(scores >= det_thresh)[0]
         if len(inds) > 0:
-            name_to_det_feat[name] = (det[inds], feat[inds])
+            name_to_det_feat[name] = (det[inds], feat[inds].astype(np.float64))
 
     topk = [1, 5, 10]
     ret = {"image_root": gallery_dataset.img_prefix, "results": []}
@@ -630,16 +650,18 @@ def eval_search_prw(
         query_det = query_dets[i] if cbgm and len(query_dets) > i else None
         query_feat = query_feats[i] if cbgm and len(query_feats) > i else None
         args_list.append((
-            i, query_anno, feat_p, query_det, query_feat, annos, name_to_det_feat,
+            i, query_anno, feat_p, query_det, query_feat,
             ignore_cam_id, cbgm, k1, k2, topk
         ))
 
     # Parallel processing
     print(f"PRW search: {len(args_list)} queries...")
+    shared = {"annos": annos, "name_to_det_feat": name_to_det_feat}
     if num_workers > 1:
-        with Pool(num_workers) as pool:
+        with Pool(num_workers, initializer=_init_query_worker, initargs=(shared,)) as pool:
             results = pool.map(_process_single_query_prw, args_list)
     else:
+        _init_query_worker(shared)
         results = [_process_single_query_prw(args) for args in tqdm(args_list, desc="PRW search", ncols=0)]
 
     # Aggregate results

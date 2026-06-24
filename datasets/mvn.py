@@ -35,25 +35,6 @@ class MVN(BaseDataset):
             )
         return queries
 
-    def _load_split_img_names_all(self):
-        """
-        Load the image names for the specific split.
-        """
-        assert self.split in ("train", "gallery")
-        # the whole gallery images
-        gallery_imgs = loadmat(osp.join(self.root, "annotation", "pool_{}.mat".format(self.gallery_size)))
-        gallery_imgs = gallery_imgs["pool"].squeeze()
-        gallery_imgs = [str(a.squeeze()) for a in gallery_imgs]
-        if self.split == "gallery":
-            return gallery_imgs
-        # all images
-        all_imgs = loadmat(osp.join(self.root, "annotation", "Images.mat"))
-        all_imgs = all_imgs["Img"].squeeze()
-        all_imgs = [str(a[0].squeeze()) for a in all_imgs]
-        # the whole training images = all images - all gallery images
-        training_imgs = sorted(list(set(all_imgs) - set(gallery_imgs)))
-        return training_imgs
-
     def _load_split_img_names(self):
         """
         Load the image names for the specific split.
@@ -82,7 +63,7 @@ class MVN(BaseDataset):
         all_imgs = all_imgs["Img"].squeeze()
         name_to_boxes = {}
         name_to_pids = {}
-        unlabeled_pid = 5555  # default pid for unlabeled people
+        unlabeled_pid = config.unlabeled_pid
         for img_name, _, boxes in all_imgs:
             img_name = str(img_name[0])
             boxes = np.asarray([b[0] for b in boxes[0]])
@@ -127,6 +108,8 @@ class MVN(BaseDataset):
         annotations = []
         imgs = self._load_split_img_names()
         for img_name in imgs:
+            if img_name not in name_to_boxes:
+                raise KeyError(f"{self.name}: split image '{img_name}' missing from Images.mat")
             boxes = name_to_boxes[img_name]
             boxes[:, 2:] += boxes[:, :2]  # (x1, y1, w, h) -> (x1, y1, x2, y2)
             pids = name_to_pids[img_name]

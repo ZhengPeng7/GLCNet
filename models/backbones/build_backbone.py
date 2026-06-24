@@ -4,63 +4,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from configs import config
-
-
-class SwinBackbone(nn.Module):
-    """Wrapper for Swin Transformer backbone to match GLCNet interface."""
-    def __init__(self, swin_model):
-        super().__init__()
-        self.bb = swin_model
-        self.out_channels = config.bb_out_channels[0]
-
-        if config.freeze_bb:
-            for param in self.bb.parameters():
-                param.requires_grad = False
-
-    def forward(self, x):
-        # Swin outputs tuple of features from each stage
-        # Stage indices: 0, 1, 2, 3 correspond to different resolutions
-        # For GLCNet, we use stage 1 output as feat_res3 (similar resolution to ResNet layer3)
-        feats = self.bb(x)
-        feat_res3 = feats[1]  # Stage 1 output (stride 8)
-        return OrderedDict([["feat_res3", feat_res3]])
-
-
-class SwinRes4Head(nn.Module):
-    """Wrapper for Swin Transformer head to match GLCNet interface."""
-    def __init__(self, swin_model):
-        super().__init__()
-        self.bb = swin_model
-        self.out_channels = [config.bb_out_channels[0], config.bb_out_channels[1]]
-        # Store stage 2 and 3 features for later use
-        self._feat_cache = None
-
-    def forward(self, x):
-        # x is already feat_res3 from SwinBackbone
-        # We need to get feat_res4 from the cached features
-        # Since Swin processes all stages together, we cache during backbone forward
-        # Here x is the input that should be processed further
-        x_pooled = F.adaptive_max_pool2d(x, 1)
-
-        # For Swin, the res4 features are stored in _feat_cache during backbone forward
-        if self._feat_cache is not None:
-            feat_res4 = self._feat_cache
-            feat_res4_pooled = F.adaptive_max_pool2d(feat_res4, 1)
-        else:
-            # Fallback: use input as res4 (shouldn't happen normally)
-            feat_res4_pooled = x_pooled
-
-        return OrderedDict([["feat_res3", x_pooled], ["feat_res4", feat_res4_pooled]])
+from models.modules.layers import build_norm_layer
 
 
 class SwinBackboneFull(nn.Module):
-    """Full Swin backbone that provides both feat_res3 and caches feat_res4."""
+    """Full Swin backbone that provides feat_res3 (the deepest stage is fabricated by the Res4Head)."""
     def __init__(self, swin_model, out_channels):
         super().__init__()
         self.bb = swin_model
         self.out_channels = out_channels[0]
         self._out_channels_all = out_channels
-        self.feat_res4_cache = None
 
         if config.freeze_bb:
             for param in self.bb.parameters():
@@ -68,97 +21,97 @@ class SwinBackboneFull(nn.Module):
 
     def forward(self, x):
         feats = self.bb(x)
-        # Stage 2 (stride 16) as feat_res3, Stage 3 (stride 32) as feat_res4
-        # This matches ResNet layer3/layer4 spatial resolution
-        feat_res3 = feats[2]  # Stage 2 output
-        self.feat_res4_cache = feats[3]  # Stage 3 output (cache for Res4Head)
-        return OrderedDict([["feat_res3", feat_res3]])
+        assert len(feats) >= 3, f'backbone must expose >=3 feature stages, got {len(feats)}'
+        # Stage 2 (stride 16) as feat_res3 (matches ResNet layer3 resolution); feat_res4 is fabricated
+        # from RoI-pooled feat_res3 by the Res4Head (see SwinRes4Head).
+        return OrderedDict([["feat_res3", feats[2]]])
 
 
-class SwinRes4HeadWithCache(nn.Module):
-    """Swin head that processes RoI features to produce feat_res4."""
+class SwinRes4Head(nn.Module):
+    """Swin head that fabricates feat_res4 (res4-level) from RoI-pooled feat_res3, like ResNet's layer4."""
     def __init__(self, backbone_ref):
         super().__init__()
-        self.backbone_ref = backbone_ref
         self.out_channels = backbone_ref._out_channels_all
         in_channels = self.out_channels[0]
         out_channels = self.out_channels[1]
-        # Conv block to transform RoI features from res3 channels to res4 channels
-        # Similar to ResNet's layer4 processing
         self.res4_conv = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels, eps=1e-3),
+            build_norm_layer(out_channels, config.norm_res4, eps=1e-3),
             nn.ReLU(inplace=True),
             nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels, eps=1e-3),
+            build_norm_layer(out_channels, config.norm_res4, eps=1e-3),
             nn.ReLU(inplace=True),
         )
 
     def forward(self, x):
         # x: (num_proposals, res3_channels, 14, 14) - RoI-pooled features
         x_pooled = F.adaptive_max_pool2d(x, 1)
-        # Process RoI features through conv block to get res4-level features
-        feat_res4 = self.res4_conv(x)
-        feat_res4_pooled = F.adaptive_max_pool2d(feat_res4, 1)
+        feat_res4_pooled = F.adaptive_max_pool2d(self.res4_conv(x), 1)
         return OrderedDict([["feat_res3", x_pooled], ["feat_res4", feat_res4_pooled]])
 
 
 class DinoBackbone(nn.Module):
-    """Wrapper for DINOv3 backbone to match GLCNet interface."""
+    """Wrapper for DINOv3 backbone to match GLCNet interface (feat_res3 only; feat_res4 via Res4Head)."""
     def __init__(self, dino_model, out_channels):
         super().__init__()
         self.bb = dino_model
         self.out_channels = out_channels[0]
         self._out_channels_all = out_channels
-        self.feat_res4_cache = None
 
         if config.freeze_bb:
             for param in self.bb.parameters():
                 param.requires_grad = False
 
     def forward(self, x):
-        # DINOv3 outputs features from different transformer layers
-        # All have same spatial resolution (based on patch size)
+        # DINOv3 returns only the feat_res3 stage (out_indices pruned to a single block).
         feats = self.bb(x)
-        # Use second-to-last feature as feat_res3, last as feat_res4
-        feat_res3 = feats[2]  # Third output
-        self.feat_res4_cache = feats[3]  # Fourth output (cache for head)
-        return OrderedDict([["feat_res3", feat_res3]])
+        assert len(feats) >= 1, f'backbone must expose >=1 feature stage, got {len(feats)}'
+        return OrderedDict([["feat_res3", feats[0]]])  # feat_res4 is fabricated by DinoRes4Head
 
 
 class DinoRes4Head(nn.Module):
-    """DINOv3 head that processes RoI features to produce feat_res4."""
+    """DINOv3 head that fabricates feat_res4 from RoI-pooled feat_res3 crops."""
     def __init__(self, backbone_ref):
         super().__init__()
-        self.backbone_ref = backbone_ref
         self.out_channels = backbone_ref._out_channels_all
         in_channels = self.out_channels[0]
         out_channels = self.out_channels[1]
-        # Conv block to transform RoI features
-        # For DINOv3, res3 and res4 have same channels, so this is identity-like
-        if in_channels == out_channels:
-            self.res4_conv = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1, bias=False),
-                nn.BatchNorm2d(out_channels, eps=1e-3),
-                nn.ReLU(inplace=True),
-            )
-        else:
-            self.res4_conv = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1, bias=False),
-                nn.BatchNorm2d(out_channels, eps=1e-3),
-                nn.ReLU(inplace=True),
+        # For DINOv3, res3 and res4 have the same channels, so a single conv block suffices;
+        # an extra conv is added when channels differ.
+        layers = [
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1, bias=False),
+            build_norm_layer(out_channels, config.norm_res4, eps=1e-3),
+            nn.ReLU(inplace=True),
+        ]
+        if in_channels != out_channels:
+            layers += [
                 nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False),
-                nn.BatchNorm2d(out_channels, eps=1e-3),
+                build_norm_layer(out_channels, config.norm_res4, eps=1e-3),
                 nn.ReLU(inplace=True),
-            )
+            ]
+        self.res4_conv = nn.Sequential(*layers)
 
     def forward(self, x):
         # x: (num_proposals, res3_channels, 14, 14) - RoI-pooled features
         x_pooled = F.adaptive_max_pool2d(x, 1)
-        # Process RoI features through conv block to get res4-level features
-        feat_res4 = self.res4_conv(x)
-        feat_res4_pooled = F.adaptive_max_pool2d(feat_res4, 1)
+        feat_res4_pooled = F.adaptive_max_pool2d(self.res4_conv(x), 1)
         return OrderedDict([["feat_res3", x_pooled], ["feat_res4", feat_res4_pooled]])
+
+
+_BB_LOAD_MIN_MATCH_FRAC = 0.5  # refuse to "load" a mostly-random backbone
+
+
+def _filter_matching(source, model_dict):
+    """Split source state_dict vs model_dict into matched (same shape) / mismatched / unexpected keys."""
+    matched, mismatched, unexpected = {}, [], []
+    for k, v in source.items():
+        if k not in model_dict:
+            unexpected.append(k)
+        elif v.size() == model_dict[k].size():
+            matched[k] = v
+        else:
+            mismatched.append(k)
+    return matched, mismatched, unexpected
 
 
 def load_weights(model, model_name):
@@ -175,24 +128,28 @@ def load_weights(model, model_name):
         return model
 
     model_dict = model.state_dict()
-    state_dict = {k: v if v.size() == model_dict[k].size() else model_dict[k]
-                  for k, v in save_model.items() if k in model_dict.keys()}
-
-    if not state_dict:
-        save_model_keys = list(save_model.keys())
-        sub_item = save_model_keys[0] if len(save_model_keys) == 1 else None
+    matched, mismatched, unexpected = _filter_matching(save_model, model_dict)
+    if not matched:
+        # Some checkpoints wrap the real state_dict under a single top-level key.
+        keys = list(save_model.keys())
+        sub_item = keys[0] if len(keys) == 1 else None
         if sub_item and isinstance(save_model[sub_item], dict):
-            state_dict = {k: v if v.size() == model_dict[k].size() else model_dict[k]
-                          for k, v in save_model[sub_item].items() if k in model_dict.keys()}
-        if not state_dict:
-            print(f'Weights are not successfully loaded for {model_name}. Check the state dict.')
-            return model
-        else:
-            print(f'Found correct weights in the "{sub_item}" item of loaded state_dict.')
+            matched, mismatched, unexpected = _filter_matching(save_model[sub_item], model_dict)
+            if matched:
+                print(f'Found weights in the "{sub_item}" item of loaded state_dict.')
 
-    model_dict.update(state_dict)
+    match_frac = len(matched) / max(len(model_dict), 1)
+    if match_frac < _BB_LOAD_MIN_MATCH_FRAC:
+        raise RuntimeError(
+            f'Refusing to load {model_name} from {weights_path}: only {len(matched)}/{len(model_dict)} '
+            f'({match_frac:.1%}) weights matched ({len(mismatched)} shape-mismatched, '
+            f'{len(unexpected)} unexpected) — the backbone would be mostly randomly initialized.'
+        )
+
+    model_dict.update(matched)
     model.load_state_dict(model_dict)
-    print(f'Loaded weights for {model_name} from {weights_path}')
+    print(f'Loaded {len(matched)}/{len(model_dict)} weights for {model_name} from {weights_path} '
+          f'({len(mismatched)} shape-mismatched, {len(unexpected)} unexpected keys).')
     return model
 
 
@@ -234,7 +191,7 @@ def build_backbone(bb_name, pretrained=True):
 
         out_channels = config.bb_out_channels_collection.get(bb_name, [1024, 2048])
         backbone = SwinBackboneFull(swin_model, out_channels)
-        box_head = SwinRes4HeadWithCache(backbone)
+        box_head = SwinRes4Head(backbone)
         return backbone, box_head
 
     elif bb_name.startswith('dino_v3'):

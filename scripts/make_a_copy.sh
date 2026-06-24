@@ -30,7 +30,8 @@ cp ./models/modules/*.py ../${repo}/models/modules
 mkdir ../${repo}/datasets
 cp ./datasets/*.py ../${repo}/datasets
 
-# mkdir ../${repo}/models/modules
-# cp ./models/modules/*.py ../${repo}/models/modules
+# Top-level files and asset dirs (README, LICENSE, requirements, demo images).
+cp ./*.md ./*.txt ./LICENSE ../${repo}
+cp -r ./demo_imgs ./README.assets ../${repo}
 
 cp -r ./.git* ../${repo}

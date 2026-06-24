@@ -6,20 +6,17 @@ from models.modules.layers import (
     ToChannelsFirst,
     ToChannelsLast,
 )
-from models.modules.components import (
-    MultiPartSpliter,
+from models.modules.decoder_blocks import (
     BasicDecBlk,
-    DeformableConv2d,
-    ASPPDeformable,
-    CoAttLayer,
-    GAM,
+)
+from models.modules.attention import (
     SEAttention,
     ChannelAttention,
-    SpatialAttention,
+)
+from models.modules.parts import (
+    MultiPartSpliter,
 )
 from models.modules.context import (
     ContextExtractor1,
-    ContextExtractor2,
-    ContextExtractor3_scene,
     ContextExtractor3_group,
 )

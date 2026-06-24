@@ -68,11 +68,13 @@ class SmoothedValue(object):
 
 
 class MetricLogger(object):
-    def __init__(self, delimiter="\t", log_file="training.log", append=False):
+    def __init__(self, delimiter="\t", log_file="training.log", append=False, main_process=True):
         self.meters = defaultdict(SmoothedValue)
         self.delimiter = delimiter
         self.log_file = log_file
-        if self.log_file is not None and not append:
+        # In multi-GPU runs only the main process prints/writes the log to avoid N-fold duplication.
+        self.main_process = main_process
+        if self.main_process and self.log_file is not None and not append:
             with open(self.log_file, "w") as f:
                 f.write("")
 
@@ -100,6 +102,8 @@ class MetricLogger(object):
         self.meters[name] = meter
 
     def _log_to_console_and_file(self, message):
+        if not self.main_process:
+            return
         print(message)
         if self.log_file is not None:
             with open(self.log_file, "a") as f:
@@ -138,22 +142,12 @@ class MetricLogger(object):
 # -------------------------------------------------------- #
 #                      File operation                      #
 # -------------------------------------------------------- #
-def filename(path):
-    return osp.splitext(osp.basename(path))[0]
-
-
 def mkdir(path):
     try:
         os.makedirs(path)
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
-
-
-def read_json(fpath):
-    with open(fpath, "r") as f:
-        obj = json.load(f)
-    return obj
 
 
 def write_json(obj, fpath):
@@ -201,30 +195,10 @@ def create_small_table(small_dict):
 def load_weights(ckpt_path, model):
     state_dict = torch.load(ckpt_path, map_location='cpu', weights_only=True)
     state_dict = check_state_dict(state_dict)
+    # Strict load: an eval/demo checkpoint must match the model exactly; fail loudly on any
+    # missing/unexpected/shape-mismatched key rather than evaluating a partially-loaded model.
     model.load_state_dict(state_dict)
     return None
-
-
-def resume_from_ckpt(ckpt_path, model, optimizer=None, lr_scheduler=None, only_eval=False):
-    if only_eval:
-        state_dict = torch.load(ckpt_path, map_location='cpu', weights_only=True)
-        state_dict = check_state_dict(state_dict)
-        model.load_state_dict(state_dict)
-        print(f"loaded checkpoint {ckpt_path}.")
-        return 0
-    else:
-        ckpt = torch.load(ckpt_path)
-        my_state_dict = model.state_dict()
-        kv_to_be_updated = {k: v for (k, v) in ckpt["model"].items() if 'reid_loss' not in k}
-        my_state_dict.update(kv_to_be_updated)
-        model.load_state_dict(my_state_dict, strict=False)
-        if optimizer is not None:
-            optimizer.load_state_dict(ckpt["optimizer"])
-        if lr_scheduler is not None:
-            lr_scheduler.load_state_dict(ckpt["lr_scheduler"])
-        print(f"loaded checkpoint {ckpt_path}.")
-        print(f"model was trained for {ckpt['epoch']} epochs.")
-        return ckpt["epoch"]
 
 
 def set_random_seed(seed):

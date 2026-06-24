@@ -78,17 +78,10 @@ def evaluate_performance(
                     }
                 ]
 
-            for images, output in zip(images, outputs):
-                expand_ratio = 0
-                if expand_ratio:
-                    for idx_box, (box, image) in enumerate(zip(output["boxes"], images)):
-                        x1, y1, x2, y2 = box
-                        hei_image, wid_image = image.shape[-2:]
-                        wid, hei = (x2 - x1) / 2, (y2 - y1) / 2
-                        output["boxes"][idx_box][0] = max(0, x1 - wid * expand_ratio)
-                        output["boxes"][idx_box][1] = max(0, y1 - wid * expand_ratio)
-                        output["boxes"][idx_box][2] = min(wid_image-1, x2 + hei * expand_ratio)
-                        output["boxes"][idx_box][3] = min(hei_image-1, y2 + hei * expand_ratio)
+            # NOTE: a per-box expansion analysis can be inserted here — enlarging each detected
+            # box before feature extraction so the embedding perceives a larger surrounding scene
+            # (a small scene-context variant, for comparison analysis). Disabled by default.
+            for output in outputs:
                 box_w_scores = torch.cat([output["boxes"], output["scores"].unsqueeze(1)], dim=1)
                 # Convert to float32 before numpy for consistent precision with bf16/fp16
                 gallery_dets.append(box_w_scores.float().cpu().numpy())
@@ -175,7 +168,7 @@ def main(args):
         set_random_seed(config.seed)
 
     print("Creating model")
-    model = GLCNet(config)
+    model = GLCNet()
     model.to(device)
 
     if config.precisionHigh:

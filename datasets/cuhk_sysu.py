@@ -4,6 +4,7 @@ import numpy as np
 from scipy.io import loadmat
 
 from .base import BaseDataset
+from configs import config
 
 
 class CUHKSYSU(BaseDataset):
@@ -59,7 +60,7 @@ class CUHKSYSU(BaseDataset):
         all_imgs = all_imgs["Img"].squeeze()
         name_to_boxes = {}
         name_to_pids = {}
-        unlabeled_pid = 5555  # default pid for unlabeled people
+        unlabeled_pid = config.unlabeled_pid
         for img_name, _, boxes in all_imgs:
             img_name = str(img_name[0])
             boxes = np.asarray([b[0] for b in boxes[0]])
@@ -106,6 +107,8 @@ class CUHKSYSU(BaseDataset):
         annotations = []
         imgs = self._load_split_img_names()
         for img_name in imgs:
+            if img_name not in name_to_boxes:
+                raise KeyError(f"{self.name}: split image '{img_name}' missing from Images.mat")
             boxes = name_to_boxes[img_name]
             boxes[:, 2:] += boxes[:, :2]  # (x1, y1, w, h) -> (x1, y1, x2, y2)
             pids = name_to_pids[img_name]

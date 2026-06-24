@@ -122,17 +122,10 @@ class KuhnMunkres(object):
         return ret
 
     def get_max_value_result(self):
-        # ret = 0
         ret = -100
-        # ret = []
         for i in range(self.x_length):
             j = self.x_nodes[i].match
-            # ret += self.matrix[i][j]
             ret = max(ret, self.matrix[i][j])
-            # ret.append(self.matrix[i][j])
-        # ret.sort()
-        # ret = ret[-1:]
-        # ret = np.array(ret).mean()
         return ret
 
 
@@ -155,8 +148,5 @@ def test():
 
 
 if __name__ == "__main__":
-    # s_time = time.time()
-    # ret = test()
-    # print "time usage: %s " % str(time.time() - s_time)
     values = [(1, 1, 3), (1, 3, 4), (2, 1, 2), (2, 2, 1), (2, 3, 3), (3, 2, 4), (3, 3, 5)]
     print(run_kuhn_munkres(values))

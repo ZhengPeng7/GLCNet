@@ -10,8 +10,20 @@ class ConfigModel:
             'dino_v3_b', 'dino_v3_l', 'dino_v3_h_plus', 'dino_v3_7b',   # DINOv3
             'pvt_v2_b2', 'pvt_v2_b1',                                   # PVT v2
         ][4]
-        self.freeze_bb = any(x in self.bb for x in ['dino_v3', 'swin_v1'])
-        self.use_bn = True
+        # Default-derived from backbone, set explicitly so it can be overridden independently of backbone name.
+        self.freeze_bb_default = any(x in self.bb for x in ['dino_v3', 'swin_v1'])
+        self.freeze_bb_override = None  # None uses default; set True/False to override
+        self.freeze_bb = self.freeze_bb_default if self.freeze_bb_override is None else self.freeze_bb_override
+        # Normalization choice per module group (default 'BN' = baseline; 'none' = no norm).
+        # norm_context: 2D conv context heads (per-image, small batch) -> GN recommended (batch-independent, B=1-safe).
+        # norm_nae:     NAE projector (RoI batch) -> BN baseline; LN if experimenting (1D).
+        # norm_head:    BBoxRegressor / Fuser / _bn modules -> BN baseline; LN if experimenting (works 1D & 2D).
+        # norm_res4:    res4_conv head fabricating feat_res4 from RoI-pooled feat_res3 (2D conv) -> BN baseline.
+        # The NAE rescaler is hard-pinned to BN in code (size-1 dim makes LN/GN degenerate).
+        self.norm_context = ['BN', 'GN', 'none'][0]
+        self.norm_nae = ['BN', 'LN', 'none'][0]
+        self.norm_head = ['BN', 'LN', 'none'][0]
+        self.norm_res4 = ['BN', 'GN', 'none'][0]
 
         # Backbone output channels: [res3_channels, res4_channels]
         # For Swin: res3=stage2 (4*C), res4=stage3 (8*C) to match ResNet stride 16/32
@@ -48,12 +60,11 @@ class ConfigModel:
         # Context extraction settings
         self.cxt_scene_enabled = True
         self.cxt_group_enabled = True
-        self.cxt_group_labelledOnly = False
         self.cxt = self.cxt_scene_enabled or self.cxt_group_enabled
 
-        # Context extractor types: 0=AdaptiveMaxPool, 1=Attentioned, 2=CoAtt, 3=MultiScale
-        self.cxt_ext_scene = [0, 1, 2, 3, 4][1]
-        self.cxt_ext_group = [0, 1, 2, 3, 4][3]
+        # Context extractor types: 0=AdaptiveMaxPool, 1=Attentioned(ContextExtractor1), 3=MultiScale(ContextExtractor3_group, group only)
+        self.cxt_ext_scene = [0, 1][1]
+        self.cxt_ext_group = [0, 1, 3][2]
 
         # Context feature dimensions
         self.cxt_scene_len = self.bb_out_channels[0] * int(self.cxt_scene_enabled)
@@ -65,16 +76,17 @@ class ConfigModel:
 
         # Multi-part matching settings
         self.multi_part_matching = True
+        # MultiPartSpliter splits RoI features into 1+2+3 horizontal stripes across 3 granularity
+        # blocks (scales [1, 2, 3] in models/modules/parts.py) -> 6 part embeddings.
+        self.mps_num_parts = 1 + 2 + 3
         self.mps_channels = [None, 256][0]
-        self.mps_norm_len = [384, 192, 96][1] // (1 + 2 + 3)
+        self.mps_norm_len = [384, 192, 96][1] // self.mps_num_parts
         self.mps_blk = ['BasicDecBlk', 'resnet50_layer4'][1]
 
         # SeqHead and NAE settings
-        self.seq_head = True
         self.nae_mix_res3 = True
         self.nae_multi = True
         self.nae_feature_seperate = True
-        self.bn_feature_seperately = False
 
         # NAE dimensions (auto-configured)
         self.nae_dims = self._get_nae_dims()
@@ -109,7 +121,15 @@ class ConfigModel:
         self.roi_head_neg_thresh_train = 0.5
         self.roi_head_score_thresh_test = 0.5
         self.roi_head_nms_thresh_test = 0.4
+        # Post-box NMS uses a higher threshold than proposal NMS: refined boxes have higher
+        # mutual IoU, so a looser threshold is needed (see glcnet.py postprocess_boxes).
+        self.roi_head_post_box_nms_thresh_test = 0.5
+        # Minimum box edge length (px) to keep after post-box decoding (remove_small_boxes).
+        self.roi_head_post_box_min_size = 0.1
         self.roi_head_detections_per_image_test = 300
+        # RoI-align pooling geometry (consumed by box_roi_pool in glcnet.py).
+        self.roi_pool_output_size = 14
+        self.roi_pool_sampling_ratio = 2
 
     def _get_nae_dims(self):
         if (self.nae_mix_res3 or self.nae_multi) and self.nae_feature_seperate:

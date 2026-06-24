@@ -13,8 +13,13 @@ class Config:
         # Main active settings
         self.batch_size_train = 3
 
-        # PATH settings
-        self.sys_home_dir = ['/mnt/shared-storage-gpfs2/single-cell/zhengpeng', '/workspace'][1]
+        # PATH settings — auto-detect platform by file path (runpod=/workspace, else H cluster).
+        platform = 'runpod' if os.path.abspath(__file__).startswith('/workspace') else 'H'
+        platform_index = ['runpod', 'H'].index(platform)
+        self.sys_home_dir = [
+            '/workspace',
+            '/mnt/shared-storage-gpfs2/single-cell/zhengpeng',
+        ][platform_index]
 
         # Import sub-configs
         for sub_cfg_cls in (ConfigTask, ConfigData, ConfigModel, ConfigTrain, ConfigLoss, ConfigMisc):

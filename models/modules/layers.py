@@ -1,6 +1,10 @@
 import torch.nn as nn
 
 
+def _act():
+    return nn.ReLU()
+
+
 def build_act_layer(act_layer):
     """Build activation layer from config string."""
     if act_layer == 'ReLU':
@@ -25,7 +29,10 @@ class ToChannelsLast(nn.Module):
 
 
 def build_norm_layer(dim, norm_layer, in_format='channels_first', out_format='channels_first', eps=1e-6, num_groups=32):
-    """Build 2D normalization layer (BN/LN/GN) with optional format conversion."""
+    """Build 2D normalization layer (BN/LN/GN/none) with optional format conversion."""
+    if norm_layer == 'none':
+        return nn.Identity()
+
     layers = []
 
     if norm_layer == 'BN':
@@ -36,6 +43,8 @@ def build_norm_layer(dim, norm_layer, in_format='channels_first', out_format='ch
             layers.append(ToChannelsLast())
 
     elif norm_layer == 'LN':
+        if dim == 1:
+            raise ValueError("LayerNorm is degenerate on a size-1 channel dim; use 'BN' or 'GN'.")
         if in_format == 'channels_first':
             layers.append(ToChannelsLast())
         layers.append(nn.LayerNorm(dim, eps=eps))
@@ -59,15 +68,21 @@ def build_norm_layer(dim, norm_layer, in_format='channels_first', out_format='ch
 
 
 def build_norm_layer_1d(dim, norm_layer, eps=1e-3, num_groups=32, affine=True):
-    """Build 1D normalization layer (BN/LN/GN) for Linear outputs."""
+    """Build 1D normalization layer (BN/LN/GN/none) for Linear outputs."""
+    if norm_layer == 'none':
+        return nn.Identity()
     if norm_layer == 'BN':
         return nn.BatchNorm1d(dim, eps=eps, affine=affine)
     elif norm_layer == 'LN':
+        if dim == 1:
+            raise ValueError("LayerNorm is degenerate on a size-1 feature dim; use 'BN'.")
         return nn.LayerNorm(dim, eps=eps, elementwise_affine=affine)
     elif norm_layer == 'GN':
         num_groups = min(num_groups, dim)
         while dim % num_groups != 0:
             num_groups -= 1
+        if num_groups == dim:
+            raise ValueError(f"GroupNorm is degenerate on a 1D dim={dim} (1 channel/group, no spatial); use 'LN' or 'BN'.")
         return nn.GroupNorm(num_groups, dim, eps=eps, affine=affine)
     else:
         raise NotImplementedError(f'build_norm_layer_1d does not support {norm_layer}')

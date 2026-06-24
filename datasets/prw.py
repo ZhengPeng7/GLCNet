@@ -5,6 +5,7 @@ import numpy as np
 from scipy.io import loadmat
 
 from .base import BaseDataset
+from configs import config
 
 
 class PRW(BaseDataset):
@@ -14,7 +15,7 @@ class PRW(BaseDataset):
         super(PRW, self).__init__(root, transforms, split)
 
     def _get_cam_id(self, img_name):
-        match = re.search(r"c\d", img_name).group().replace("c", "")
+        match = re.search(r"c\d+", img_name).group().replace("c", "")
         return int(match)
 
     def _load_queries(self):
@@ -71,6 +72,7 @@ class PRW(BaseDataset):
                 box_key = "anno_file"
             if box_key not in anno.keys():
                 box_key = "anno_previous"
+            assert box_key in anno, f"PRW annotation {anno_path} has none of box_new/anno_file/anno_previous"
 
             rois = anno[box_key][:, 1:]
             ids = anno[box_key][:, 0]
@@ -79,7 +81,7 @@ class PRW(BaseDataset):
             assert len(rois) == len(ids)
 
             rois[:, 2:] += rois[:, :2]
-            ids[ids == -2] = 5555  # assign pid = 5555 for unlabeled people
+            ids[ids == -2] = config.unlabeled_pid  # unlabeled people
             annotations.append(
                 {
                     "img_name": img_name,

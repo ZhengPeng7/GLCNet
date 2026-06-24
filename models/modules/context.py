@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 from torch.utils.checkpoint import checkpoint
-from models.modules.components import CoAttLayer, ChannelAttention, SpatialAttention
+from models.modules import ChannelAttention
+from models.modules.layers import build_norm_layer
 from configs import config
 
 
@@ -9,17 +10,16 @@ class ContextExtractor1(nn.Module):
     # Attentioned context + x
     def __init__(self, in_channels=config.bb_out_channels[0]):
         super().__init__()
-        # Use eps=1e-3 for bf16 compatibility
+        # config.norm_context: 'BN' baseline / 'GN' batch-independent / 'none'. eps=1e-3 for bf16.
         self.convs = nn.Sequential(
             nn.Conv2d(in_channels, 256, 3, 1, 1),
-            nn.BatchNorm2d(256, eps=1e-3) if config.use_bn else nn.Identity(),
+            build_norm_layer(256, config.norm_context, eps=1e-3),
             nn.ReLU(),
             nn.Conv2d(256, 256, 3, 1, 1),
-            nn.BatchNorm2d(256, eps=1e-3) if config.use_bn else nn.Identity(),
+            build_norm_layer(256, config.norm_context, eps=1e-3),
             nn.ReLU(),
             nn.Conv2d(256, 1, 3, 1, 1),
-            nn.BatchNorm2d(1, eps=1e-3) if config.use_bn else nn.Identity(),
-            nn.ReLU(),
+            build_norm_layer(1, config.norm_context, eps=1e-3),
         )
         self.avgpool = nn.AdaptiveMaxPool2d(1)
 
@@ -32,71 +32,22 @@ class ContextExtractor1(nn.Module):
         return self.avgpool(x)
 
 
-class ContextExtractor2(nn.Module):
-    # Attentioned context + x
-    def __init__(self, in_channels=config.bb_out_channels[0]):
-        super().__init__()
-        self.convs = CoAttLayer(in_channels)
-        self.avgpool = nn.AdaptiveMaxPool2d(1)
-
-    def forward(self, x):
-        x = self.convs(x)
-        return self.avgpool(x)
-
-
-class ContextExtractor3_scene(nn.Module):
-    # Multi-scale featured x + spatial-attentioned context
-    def __init__(self, in_channels=config.bb_out_channels[0]):
-        super().__init__()
-        # Use eps=1e-3 for bf16 compatibility
-        self.convs_1x1 = nn.Sequential(
-            nn.Conv2d(in_channels, 256, 1, 1, 0), nn.BatchNorm2d(256, eps=1e-3) if config.use_bn else nn.Identity(), nn.ReLU(),
-            nn.Conv2d(256, in_channels, 1, 1, 0), nn.BatchNorm2d(in_channels, eps=1e-3) if config.use_bn else nn.Identity(), nn.ReLU(),
-        )
-        self.convs_3x3 = nn.Sequential(
-            nn.Conv2d(in_channels, 256, 3, 1, 1), nn.BatchNorm2d(256, eps=1e-3) if config.use_bn else nn.Identity(), nn.ReLU(),
-            nn.Conv2d(256, in_channels, 3, 1, 1), nn.BatchNorm2d(in_channels, eps=1e-3) if config.use_bn else nn.Identity(), nn.ReLU(),
-        )
-        self.convs_5x5 = nn.Sequential(
-            nn.Conv2d(in_channels, 256, 5, 1, 2), nn.BatchNorm2d(256, eps=1e-3) if config.use_bn else nn.Identity(), nn.ReLU(),
-            nn.Conv2d(256, in_channels, 5, 1, 2), nn.BatchNorm2d(in_channels, eps=1e-3) if config.use_bn else nn.Identity(), nn.ReLU(),
-        )
-        self.spatial_attention = SpatialAttention(kernel_size=5)
-        self.avgpool = nn.AdaptiveMaxPool2d(1)
-
-    def forward(self, x):
-        # Apply gradient checkpointing during training if enabled
-        if self.training and config.gradient_checkpointing:
-            x_1x1 = checkpoint(self.convs_1x1, x, use_reentrant=False)
-            x_3x3 = checkpoint(self.convs_3x3, x, use_reentrant=False)
-            x_5x5 = checkpoint(self.convs_5x5, x, use_reentrant=False)
-        else:
-            x_1x1 = self.convs_1x1(x)
-            x_3x3 = self.convs_3x3(x)
-            x_5x5 = self.convs_5x5(x)
-        # Compute feature addition in float32 for numerical stability with bf16/fp16
-        x_ms = (x_1x1.float() + x_3x3.float() + x_5x5.float()).to(x.dtype)
-        x1 = x_ms * self.spatial_attention(x)
-        x = (x1.float() + x.float()).to(x.dtype)
-        return self.avgpool(x)
-
-
 class ContextExtractor3_group(nn.Module):
     # Multi-scale featured x + channel-attentioned context
     def __init__(self, in_channels=config.bb_out_channels[1]):
         super().__init__()
-        # Use eps=1e-3 for bf16 compatibility
+        # config.norm_context: 'BN' baseline / 'GN' batch-independent / 'none'. eps=1e-3 for bf16.
         self.convs_1x1 = nn.Sequential(
-            nn.Conv2d(in_channels, 256, 1, 1, 0), nn.BatchNorm2d(256, eps=1e-3) if config.use_bn else nn.Identity(), nn.ReLU(),
-            nn.Conv2d(256, in_channels, 1, 1, 0), nn.BatchNorm2d(in_channels, eps=1e-3) if config.use_bn else nn.Identity(), nn.ReLU(),
+            nn.Conv2d(in_channels, 256, 1, 1, 0), build_norm_layer(256, config.norm_context, eps=1e-3), nn.ReLU(),
+            nn.Conv2d(256, in_channels, 1, 1, 0), build_norm_layer(in_channels, config.norm_context, eps=1e-3), nn.ReLU(),
         )
         self.convs_3x3 = nn.Sequential(
-            nn.Conv2d(in_channels, 256, 3, 1, 1), nn.BatchNorm2d(256, eps=1e-3) if config.use_bn else nn.Identity(), nn.ReLU(),
-            nn.Conv2d(256, in_channels, 3, 1, 1), nn.BatchNorm2d(in_channels, eps=1e-3) if config.use_bn else nn.Identity(), nn.ReLU(),
+            nn.Conv2d(in_channels, 256, 3, 1, 1), build_norm_layer(256, config.norm_context, eps=1e-3), nn.ReLU(),
+            nn.Conv2d(256, in_channels, 3, 1, 1), build_norm_layer(in_channels, config.norm_context, eps=1e-3), nn.ReLU(),
         )
         self.convs_5x5 = nn.Sequential(
-            nn.Conv2d(in_channels, 256, 5, 1, 2), nn.BatchNorm2d(256, eps=1e-3) if config.use_bn else nn.Identity(), nn.ReLU(),
-            nn.Conv2d(256, in_channels, 5, 1, 2), nn.BatchNorm2d(in_channels, eps=1e-3) if config.use_bn else nn.Identity(), nn.ReLU(),
+            nn.Conv2d(in_channels, 256, 5, 1, 2), build_norm_layer(256, config.norm_context, eps=1e-3), nn.ReLU(),
+            nn.Conv2d(256, in_channels, 5, 1, 2), build_norm_layer(in_channels, config.norm_context, eps=1e-3), nn.ReLU(),
         )
         self.channel_attention = ChannelAttention(in_channels)
         self.avgpool = nn.AdaptiveMaxPool2d(1)

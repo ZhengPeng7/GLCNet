@@ -29,27 +29,20 @@ def print_statistics(dataset):
     }
     if dataset.name == "PRW" or dataset.split != "query":
         pid_list = sorted(list(pid_set))
-        if dataset.split == "query":
-            num_pids, min_pid, max_pid = len(pid_list), min(pid_list), max(pid_list)
-            statistics.update(
-                {
-                    "num_labeled_pids": num_pids,
-                    "min_labeled_pid": int(min_pid),
-                    "max_labeled_pid": int(max_pid),
-                }
-            )
-        else:
-            unlabeled_pid = pid_list[-1]
-            pid_list = pid_list[:-1]  # remove unlabeled pid
-            num_pids, min_pid, max_pid = len(pid_list), min(pid_list), max(pid_list)
-            statistics.update(
-                {
-                    "num_labeled_pids": num_pids,
-                    "min_labeled_pid": int(min_pid),
-                    "max_labeled_pid": int(max_pid),
-                    "unlabeled_pid": int(unlabeled_pid),
-                }
-            )
+        has_unlabeled = dataset.split != "query"
+        if has_unlabeled:
+            # remove the unlabeled sentinel by value (not by assuming it is the max pid)
+            pid_list = [p for p in pid_list if p != config.unlabeled_pid]
+        num_pids, min_pid, max_pid = len(pid_list), min(pid_list), max(pid_list)
+        statistics.update(
+            {
+                "num_labeled_pids": num_pids,
+                "min_labeled_pid": int(min_pid),
+                "max_labeled_pid": int(max_pid),
+            }
+        )
+        if has_unlabeled:
+            statistics["unlabeled_pid"] = int(config.unlabeled_pid)
     print(f"=> {dataset.name}-{dataset.split} loaded:\n" + create_small_table(statistics))
 
 
@@ -94,6 +87,7 @@ def build_test_loader(cfg):
         batch_size=cfg.batch_size_test,
         shuffle=False,
         num_workers=cfg.num_workers_test,
+        persistent_workers=cfg.num_workers_test > 0,
         pin_memory=True,
         collate_fn=collate_fn,
     )
@@ -102,6 +96,7 @@ def build_test_loader(cfg):
         batch_size=cfg.batch_size_test,
         shuffle=False,
         num_workers=cfg.num_workers_test,
+        persistent_workers=cfg.num_workers_test > 0,
         pin_memory=True,
         collate_fn=collate_fn,
     )
