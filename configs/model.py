@@ -14,6 +14,16 @@ class ConfigModel:
         self.freeze_bb_default = any(x in self.bb for x in ['dino_v3', 'swin_v1'])
         self.freeze_bb_override = None  # None uses default; set True/False to override
         self.freeze_bb = self.freeze_bb_default if self.freeze_bb_override is None else self.freeze_bb_override
+
+        # DINOv3 stage controls. Disabling the global switch, or disabling both independent
+        # switches, restores the previous one-output frozen-backbone path.
+        self.dino_v3_stage_global_enabled = True
+        self.dino_v3_stage_aligned_features_enabled = True
+        self.dino_v3_stage_unfreeze_enabled = True
+        self.dino_v3_trainable_stages = [4]
+        self.dino_v3_stage_lr_mult = 0.05
+        self._init_dino_v3_stage_config()
+
         # Normalization choice per module group (default 'BN' = baseline; 'none' = no norm).
         # norm_context: 2D conv context heads (per-image, small batch) -> GN recommended (batch-independent, B=1-safe).
         # norm_nae:     NAE projector (RoI batch) -> BN baseline; LN if experimenting (1D).
@@ -144,3 +154,66 @@ class ConfigModel:
                 if self.cxt_group_enabled:
                     dims.append(128)
         return dims
+
+    def _init_dino_v3_stage_config(self):
+        self.is_dino_v3 = 'dino_v3' in self.bb
+        self.dino_v3_full_out_indices_collection = {
+            'dino_v3_b': (3, 5, 7, 11),
+            'dino_v3_l': (5, 11, 17, 23),
+            'dino_v3_h_plus': (7, 15, 23, 31),
+            'dino_v3_7b': (9, 19, 29, 39),
+        }
+        self.dino_v3_legacy_out_indices_collection = {
+            'dino_v3_b': (7,),
+            'dino_v3_l': (17,),
+            'dino_v3_h_plus': (23,),
+            'dino_v3_7b': (29,),
+        }
+
+        self.dino_v3_stage_aligned_features_active = (
+            self.is_dino_v3 and
+            self.dino_v3_stage_global_enabled and
+            self.dino_v3_stage_aligned_features_enabled
+        )
+        if self.is_dino_v3:
+            full_out_indices = self.dino_v3_full_out_indices_collection[self.bb]
+            self.dino_v3_out_indices = (
+                full_out_indices[2:]
+                if self.dino_v3_stage_aligned_features_active
+                else self.dino_v3_legacy_out_indices_collection[self.bb]
+            )
+            self.dino_v3_feat_res3_output_pos = 0
+            self.dino_v3_feat_res4_output_pos = 1 if self.dino_v3_stage_aligned_features_active else None
+            self.dino_v3_stage_block_ids = self._build_dino_v3_stage_block_ids(full_out_indices)
+        else:
+            self.dino_v3_out_indices = None
+            self.dino_v3_feat_res3_output_pos = 0
+            self.dino_v3_feat_res4_output_pos = None
+            self.dino_v3_stage_block_ids = {}
+
+        self.dino_v3_stage_unfreeze_active = (
+            self.dino_v3_stage_aligned_features_active and
+            self.freeze_bb and
+            self.dino_v3_stage_unfreeze_enabled
+        )
+        if self.dino_v3_stage_unfreeze_active:
+            invalid_stages = [stage for stage in self.dino_v3_trainable_stages if stage not in self.dino_v3_stage_block_ids]
+            if invalid_stages:
+                raise ValueError(f'Invalid DINOv3 trainable stages: {invalid_stages}')
+            trainable_blocks = []
+            for stage in self.dino_v3_trainable_stages:
+                trainable_blocks.extend(self.dino_v3_stage_block_ids[stage])
+            self.dino_v3_trainable_block_ids = tuple(sorted(set(trainable_blocks)))
+            self.dino_v3_active_lr_mult = self.dino_v3_stage_lr_mult
+        else:
+            self.dino_v3_trainable_block_ids = tuple()
+            self.dino_v3_active_lr_mult = None
+
+    @staticmethod
+    def _build_dino_v3_stage_block_ids(out_indices):
+        stage_block_ids = {}
+        start = 0
+        for stage, end in enumerate(out_indices, start=1):
+            stage_block_ids[stage] = tuple(range(start, end + 1))
+            start = end + 1
+        return stage_block_ids

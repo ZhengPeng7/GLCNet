@@ -65,9 +65,9 @@ There is no YACS or yaml config. All settings live in plain-Python files under `
 
 Task is read from `configs/task.py`; checkpoints go to `ckpts/METHOD_TASK/`. Example: `sh ./scripts/train.sh 0 exp1` (multi-GPU: `sh ./scripts/train.sh 0,1,2,3 exp1`).
 
-### Test
+### Eval
 
-`sh ./scripts/test.sh GPU_IDS METHOD`
+`sh ./scripts/eval.sh GPU_IDS METHOD`
 
 Evaluates `ckpts/METHOD_TASK/epoch_best.pth`. To evaluate a checkpoint directly: `python eval.py --ckpt path/to/epoch_best.pth` (add `--cbgm` for the CBGM algorithm).
 
@@ -106,4 +106,3 @@ Thanks to the solid codebase from [SeqNet](https://github.com/serend1p1ty/SeqNet
   organization={IEEE}
 }
 ```
-

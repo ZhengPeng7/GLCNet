@@ -19,6 +19,8 @@ echo "Task: ${task} | GPUs: ${devices} (${nproc_per_node}-proc) | Output: ${outp
 CUDA_VISIBLE_DEVICES=${devices} \
     torchrun --standalone --nproc_per_node ${nproc_per_node} \
     train.py --ckpt_dir ${output_dir} ${cbgm_flag}
+train_status=$?
 
 elapsed=$(( $(date +%s) - start_time ))
 echo "Training finished at $(date) — elapsed $(date -ud @${elapsed} +'%H:%M:%S')"
+exit ${train_status}

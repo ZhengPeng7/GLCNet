@@ -73,6 +73,13 @@ class GLCNet(nn.Module):
         box_roi_pool = MultiScaleRoIAlign(
             featmap_names=["feat_res3"], output_size=config.roi_pool_output_size, sampling_ratio=config.roi_pool_sampling_ratio
         )
+        stage4_roi_pool = None
+        if config.dino_v3_stage_aligned_features_active:
+            stage4_roi_pool = MultiScaleRoIAlign(
+                featmap_names=["feat_res4_stage"],
+                output_size=config.roi_pool_output_size,
+                sampling_ratio=config.roi_pool_sampling_ratio,
+            )
         box_predictor = BBoxRegressor(box_head.out_channels[1], num_classes=2, bn_neck=config.roi_head_bn_neck)
 
         fusion_layers_att = []
@@ -148,7 +155,8 @@ class GLCNet(nn.Module):
             cxt_scene_extractor=self.cxt_scene_extractor if config.cxt_scene_enabled else None,
             cxt_group_extractor=self.cxt_group_extractor if config.cxt_group_enabled else None,
             fuser=self.fuser if config.use_fusion else [[], [], []],
-            mps=self.mps if config.multi_part_matching else None
+            mps=self.mps if config.multi_part_matching else None,
+            stage4_roi_pool=stage4_roi_pool,
         )
 
         transform = GeneralizedRCNNTransform(
@@ -172,6 +180,16 @@ class GLCNet(nn.Module):
         self.lw_box_cls = config.lw_box_cls
         self.lw_box_reid = config.lw_box_reid
 
+    def _attach_backbone_roi_features(self, features):
+        if not config.dino_v3_stage_aligned_features_active:
+            return features
+        feat_res4_stage = getattr(self.backbone, 'feat_res4_stage', None)
+        if feat_res4_stage is None:
+            raise RuntimeError('DINOv3 stage4 feature is unavailable for RoI pooling.')
+        roi_features = OrderedDict(features)
+        roi_features["feat_res4_stage"] = feat_res4_stage
+        return roi_features
+
     def inference(self, images, targets=None, query_img_as_gallery=False):
         """
         query_img_as_gallery: Set to True to detect all people in the query image.
@@ -180,24 +198,27 @@ class GLCNet(nn.Module):
         """
         original_image_sizes = [img.shape[-2:] for img in images]
         images, targets = self.transform(images, targets)
-        features = self.backbone(images.tensors)  # {feat_res3}; feat_res4 is fabricated by the Res4Head
+        features = self.backbone(images.tensors)
         rpn_features = features
+        roi_features = self._attach_backbone_roi_features(features)
 
         if query_img_as_gallery:
             assert targets is not None
 
         proposals, _ = self.rpn(images, rpn_features, targets)
         detections, _ = self.roi_heads(
-            features, proposals, images.image_sizes, targets, query_img_as_gallery
+            roi_features, proposals, images.image_sizes, targets, query_img_as_gallery
         )
 
         if targets is not None and not query_img_as_gallery:
             # with targets, inference on query boxes only.
             # query
             boxes = [t["boxes"] for t in targets]
-            box_features = self.roi_heads.box_roi_pool(features, boxes, images.image_sizes)
+            box_features, mps_box_features = self.roi_heads._pool_features_for_head(
+                roi_features, boxes, images.image_sizes
+            )
             if config.multi_part_matching:
-                mps_feat_dict = self.mps(box_features)
+                mps_feat_dict = self.mps(mps_box_features)
             box_features = self.roi_heads.reid_head(box_features)
             if config.multi_part_matching:
                 box_features.update(mps_feat_dict)
@@ -224,9 +245,10 @@ class GLCNet(nn.Module):
             return self.inference(images, targets, query_img_as_gallery)
 
         images, targets = self.transform(images, targets)
-        features = self.backbone(images.tensors)  # {feat_res3}; feat_res4 is fabricated by the Res4Head
+        features = self.backbone(images.tensors)
+        roi_features = self._attach_backbone_roi_features(features)
         proposals, proposal_losses = self.rpn(images, features, targets)
-        _, detector_losses = self.roi_heads(features, proposals, images.image_sizes, targets)
+        _, detector_losses = self.roi_heads(roi_features, proposals, images.image_sizes, targets)
 
         # rename rpn losses to be consistent with detection losses
         proposal_losses["loss_rpn_reg"] = proposal_losses.pop("loss_rpn_box_reg")
@@ -261,6 +283,7 @@ class SeqRoIHeads(RoIHeads):
         cxt_group_extractor,
         fuser,
         mps,
+        stage4_roi_pool=None,
         *args,
         **kwargs
     ):
@@ -309,6 +332,16 @@ class SeqRoIHeads(RoIHeads):
         self.cxt_scene_extractor = cxt_scene_extractor
         self.cxt_group_extractor = cxt_group_extractor
         self.fuser_att, self.fuser_mlp, self.fuser_conv = fuser
+        self.stage4_roi_pool = stage4_roi_pool
+
+    def _pool_features_for_head(self, features, boxes, image_shapes):
+        feat_res3_roi = self.box_roi_pool(features, boxes, image_shapes)
+        if self.stage4_roi_pool is None:
+            return feat_res3_roi, feat_res3_roi
+        if "feat_res4_stage" not in features:
+            raise RuntimeError('feat_res4_stage is required by the DINOv3 stage-aligned RoI head.')
+        feat_res4_roi = self.stage4_roi_pool(features, boxes, image_shapes)
+        return (feat_res3_roi, feat_res4_roi), feat_res3_roi
 
     def _inject_precomputed_context(self, box_features):
         """Re-inject the cached image-level context (cxt_scene/cxt_group from x_embedding_head,
@@ -347,7 +380,7 @@ class SeqRoIHeads(RoIHeads):
             )
 
         # ------------------- Faster R-CNN head ------------------ #
-        proposal_features = self.box_roi_pool(features, proposals, image_shapes)
+        proposal_features, _ = self._pool_features_for_head(features, proposals, image_shapes)
         proposal_features = self.box_head(proposal_features)
         proposal_cls_scores, proposal_regs = self.faster_rcnn_predictor(
             proposal_features["feat_res4"]
@@ -386,13 +419,13 @@ class SeqRoIHeads(RoIHeads):
         if boxes[0].shape[0] > 0:
             # --------------------- Baseline head -------------------- #
             # Basic forward process and context extraction.
-            box_features = self.box_roi_pool(features, boxes, image_shapes)
+            box_features, mps_box_features = self._pool_features_for_head(features, boxes, image_shapes)
             if config.multi_part_matching:
                 # features.shape == batch_size, 1024, 58, 94
                 if self.training and config.gradient_checkpointing:
-                    mps_feat_dict = checkpoint(self.mps, box_features, use_reentrant=False)
+                    mps_feat_dict = checkpoint(self.mps, mps_box_features, use_reentrant=False)
                 else:
-                    mps_feat_dict = self.mps(box_features)
+                    mps_feat_dict = self.mps(mps_box_features)
             if self.training and config.gradient_checkpointing:
                 box_features = checkpoint(self.reid_head, box_features, use_reentrant=False)
             else:
@@ -465,9 +498,9 @@ class SeqRoIHeads(RoIHeads):
                 # Additionally, CWS should be disabled as the confidences of these people in query image are 1.
                 cws = False
                 gt_boxes = [targets[0]["boxes"]]
-                gt_box_features = self.box_roi_pool(features, gt_boxes, image_shapes)
+                gt_box_features, gt_mps_box_features = self._pool_features_for_head(features, gt_boxes, image_shapes)
                 if config.multi_part_matching:
-                    mps_feat_dict = self.mps(gt_box_features)
+                    mps_feat_dict = self.mps(gt_mps_box_features)
                 gt_box_features = self.reid_head(gt_box_features)
                 if config.multi_part_matching:
                     gt_box_features.update(mps_feat_dict)

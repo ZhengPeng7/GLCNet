@@ -34,6 +34,23 @@ accelerator = accelerate.Accelerator(
 )
 
 
+def build_optimizer_param_groups(model):
+    trainable = [(name, param) for name, param in model.named_parameters() if param.requires_grad]
+    if config.dino_v3_stage_unfreeze_active:
+        def is_dino_backbone(name):
+            return name.replace('_orig_mod.', '').startswith('backbone.bb.')
+
+        dino_params = [param for name, param in trainable if is_dino_backbone(name)]
+        other_params = [param for name, param in trainable if not is_dino_backbone(name)]
+        if not dino_params:
+            raise RuntimeError('DINOv3 stage unfreeze is active, but no trainable backbone parameters were found.')
+        return [
+            {'params': other_params, 'lr': config.lr},
+            {'params': dino_params, 'lr': config.lr * config.dino_v3_active_lr_mult},
+        ]
+    return [param for _, param in trainable]
+
+
 def train_one_epoch(model, optimizer, data_loader, epoch, lr_scheduler, output_dir, tb_writer=None, iter_based_scheduler=False):
     """
     Args:
@@ -109,7 +126,7 @@ def main(args):
     use_cbgm = args.cbgm or config.eval_use_cbgm
     print('use_cbgm:', use_cbgm)
 
-    params = [p for p in model.parameters() if p.requires_grad]
+    params = build_optimizer_param_groups(model)
     if config.optimizer == 'SGD':
         optimizer = torch.optim.SGD(
             params,

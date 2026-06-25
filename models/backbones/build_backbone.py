@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import re
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -51,48 +52,74 @@ class SwinRes4Head(nn.Module):
 
 
 class DinoBackbone(nn.Module):
-    """Wrapper for DINOv3 backbone to match GLCNet interface (feat_res3 only; feat_res4 via Res4Head)."""
+    """Wrapper for DINOv3 backbone to match GLCNet's one-feature RPN interface."""
     def __init__(self, dino_model, out_channels):
         super().__init__()
         self.bb = dino_model
         self.out_channels = out_channels[0]
         self._out_channels_all = out_channels
+        self.feat_res4_stage = None
+        self.use_stage4_roi = config.dino_v3_stage_aligned_features_active
+        self.feat_res3_output_pos = config.dino_v3_feat_res3_output_pos
+        self.feat_res4_output_pos = config.dino_v3_feat_res4_output_pos
 
         if config.freeze_bb:
-            for param in self.bb.parameters():
-                param.requires_grad = False
+            self._set_backbone_trainability()
+
+    def _set_backbone_trainability(self):
+        trainable_blocks = set(config.dino_v3_trainable_block_ids)
+        for name, param in self.bb.named_parameters():
+            block_match = re.search(r'(?:^|\.)blocks\.(\d+)\.', name)
+            param.requires_grad = bool(
+                block_match and int(block_match.group(1)) in trainable_blocks
+            )
 
     def forward(self, x):
-        # DINOv3 returns only the feat_res3 stage (out_indices pruned to a single block).
+        self.feat_res4_stage = None
         feats = self.bb(x)
         assert len(feats) >= 1, f'backbone must expose >=1 feature stage, got {len(feats)}'
-        return OrderedDict([["feat_res3", feats[0]]])  # feat_res4 is fabricated by DinoRes4Head
+        feat_res3 = feats[self.feat_res3_output_pos]
+        if self.use_stage4_roi:
+            assert self.feat_res4_output_pos is not None
+            assert len(feats) > self.feat_res4_output_pos, (
+                f'DINOv3 stage4 feature missing: got {len(feats)} outputs'
+            )
+            self.feat_res4_stage = feats[self.feat_res4_output_pos]
+        return OrderedDict([["feat_res3", feat_res3]])
 
 
 class DinoRes4Head(nn.Module):
-    """DINOv3 head that fabricates feat_res4 from RoI-pooled feat_res3 crops."""
+    """DINOv3 head that consumes true stage4 RoIs or fabricates them in legacy mode."""
     def __init__(self, backbone_ref):
         super().__init__()
         self.out_channels = backbone_ref._out_channels_all
         in_channels = self.out_channels[0]
         out_channels = self.out_channels[1]
-        # For DINOv3, res3 and res4 have the same channels, so a single conv block suffices;
-        # an extra conv is added when channels differ.
-        layers = [
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1, bias=False),
-            build_norm_layer(out_channels, config.norm_res4, eps=1e-3),
-            nn.ReLU(inplace=True),
-        ]
-        if in_channels != out_channels:
-            layers += [
-                nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False),
+        self.use_stage4_roi = config.dino_v3_stage_aligned_features_active
+        if self.use_stage4_roi:
+            self.res4_conv = None
+        else:
+            layers = [
+                nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1, bias=False),
                 build_norm_layer(out_channels, config.norm_res4, eps=1e-3),
                 nn.ReLU(inplace=True),
             ]
-        self.res4_conv = nn.Sequential(*layers)
+            if in_channels != out_channels:
+                layers += [
+                    nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False),
+                    build_norm_layer(out_channels, config.norm_res4, eps=1e-3),
+                    nn.ReLU(inplace=True),
+                ]
+            self.res4_conv = nn.Sequential(*layers)
 
     def forward(self, x):
-        # x: (num_proposals, res3_channels, 14, 14) - RoI-pooled features
+        if isinstance(x, (tuple, list)):
+            feat_res3_roi, feat_res4_roi = x
+            x_pooled = F.adaptive_max_pool2d(feat_res3_roi, 1)
+            feat_res4_pooled = F.adaptive_max_pool2d(feat_res4_roi, 1)
+            return OrderedDict([["feat_res3", x_pooled], ["feat_res4", feat_res4_pooled]])
+        if self.use_stage4_roi:
+            raise RuntimeError('DINOv3 stage-aligned head expects paired stage3/stage4 RoI features.')
         x_pooled = F.adaptive_max_pool2d(x, 1)
         feat_res4_pooled = F.adaptive_max_pool2d(self.res4_conv(x), 1)
         return OrderedDict([["feat_res3", x_pooled], ["feat_res4", feat_res4_pooled]])
@@ -205,7 +232,7 @@ def build_backbone(bb_name, pretrained=True):
         if bb_name not in dino_builders:
             raise ValueError(f'Unknown DINOv3 variant: {bb_name}')
 
-        dino_model = dino_builders[bb_name]()
+        dino_model = dino_builders[bb_name](out_indices=config.dino_v3_out_indices)
         if pretrained:
             dino_model = load_weights(dino_model, bb_name)
 

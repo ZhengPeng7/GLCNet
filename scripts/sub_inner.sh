@@ -8,6 +8,7 @@ p2p=/mnt/shared-storage-gpfs2/single-cell/zhengpeng
 source ${p2p}/scripts/append_me_to_bashrc.sh
 
 conda activate cv
+export EVAL_BLOCKING=1
 ./scripts/train_test.sh ${devices} ${N_RUNS} ${task_name}
 
 hostname
